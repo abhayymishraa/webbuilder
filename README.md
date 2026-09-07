@@ -10,7 +10,7 @@ An AI-powered web application builder that generates React applications through 
 - E2B sandboxes for isolated code execution and validation
 - PostgreSQL database for user authentication and chat persistence
 - JWT-based authentication with token-based rate limiting
-- Multi-provider LLM integration (OpenAI, Google Gemini, Anthropic, HuggingFace)
+- Google Gemini models for planning, building, and code validation
 
 ### Frontend
 - Next.js application with TypeScript
@@ -57,7 +57,7 @@ lovable-clone/
 - Node.js 18 or higher
 - PostgreSQL database
 - E2B account and API key
-- OpenAI API key (or other LLM provider)
+- Google Gemini API key
 
 ## Environment Variables
 
@@ -74,11 +74,8 @@ SECRET_KEY=your-secret-key-here
 # E2B Sandbox
 E2B_API_KEY=your-e2b-api-key
 
-# LLM Providers (at least one required)
-OPENAI_API_KEY=your-openai-api-key
+# Google Gemini
 GOOGLE_API_KEY=your-google-api-key
-ANTHROPIC_API_KEY=your-anthropic-api-key
-HUGGINGFACE_API_KEY=your-huggingface-api-key
 ```
 
 ## Setup
