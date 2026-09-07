@@ -246,11 +246,6 @@ def create_tools_with_context(
             return f"Failed to list directory: {str(e)}"
 
     @tool
-    def get_context() -> str:
-        """Fetches the last saved context for the current project."""
-        return "Get context - not implemented yet"
-
-    @tool
     async def test_build() -> str:
         """
         Test if the application builds successfully by running npm run build.
@@ -267,43 +262,6 @@ def create_tools_with_context(
         """
 
         return "build success"
-        try:
-            path = "/home/user/react-app"
-
-            await safe_send_json(socket, {"e": "build_test_started", "message": "Testing application build..."})
-
-            # Clean Vite cache first nd run npm install
-            clean_command = "rm -rf node_modules/.vite-temp && npm install"
-            await sandbox.commands.run(clean_command, cwd=path)
-
-            # Run build
-            build_command = "npm run build"
-            res = await sandbox.commands.run(build_command, cwd=path)
-
-            if res.exit_code == 0:
-                await safe_send_json(
-                    socket,
-                    {
-                        "e": "build_test_success",
-                        "message": "Build test passed successfully",
-                    },
-                )
-                return f"Build test PASSED. Application builds successfully.\n\nBuild output:\n{res.stdout[:500]}"
-            else:
-                error_output = res.stderr if res.stderr else res.stdout
-                await safe_send_json(
-                    socket,
-                    {
-                        "e": "build_test_failed",
-                        "message": "Build test failed",
-                        "error": error_output[:500],
-                    },
-                )
-                return f"Build test FAILED with exit code {res.exit_code}.\n\nError:\n{error_output[:1000]}"
-
-        except Exception as e:
-            await safe_send_json(socket, {"e": "build_test_error", "message": f"Build test error: {str(e)}"})
-            return f"Build test failed with error: {str(e)}"
 
     @tool
     async def write_multiple_files(files: str) -> str:
