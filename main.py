@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from e2b_code_interpreter import AsyncSandbox
 import asyncio
 import json
 import os
@@ -175,17 +176,9 @@ async def create_project(
     }
 
 
-@app.get("/projects/{id}/files")
-async def get_project_files(id: str):
-    sandbox = agent_service.sandboxes.get(id)
-    if not sandbox:
-        raise HTTPException(
-            status_code=404, detail="Project sandbox not found or not active."
-        )
-
-    try:
-        # Use a simple Python script to list files, excluding node_modules and other unnecessary files
-        list_files_script = """
+async def list_sandbox_files(sandbox: AsyncSandbox) -> list[str]:
+    """List project files for the file browser and ZIP download."""
+    list_files_script = """
 import os
 import json
 
@@ -227,18 +220,29 @@ if os.path.exists(react_app_path):
 else:
     print(json.dumps([]))
 """
-        
-        # Write the script to sandbox and execute it
-        await sandbox.files.write("/tmp/list_files.py", list_files_script)
-        proc = await sandbox.commands.run("python /tmp/list_files.py", cwd="/tmp")
-        
-        if proc.exit_code != 0:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Failed to list files: {proc.stderr}"
-            )
-        
-        files = json.loads(proc.stdout)
+
+    await sandbox.files.write("/tmp/list_files.py", list_files_script)
+    proc = await sandbox.commands.run("python /tmp/list_files.py", cwd="/tmp")
+
+    if proc.exit_code != 0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list files: {proc.stderr}"
+        )
+
+    return json.loads(proc.stdout)
+
+
+@app.get("/projects/{id}/files")
+async def get_project_files(id: str):
+    sandbox = agent_service.sandboxes.get(id)
+    if not sandbox:
+        raise HTTPException(
+            status_code=404, detail="Project sandbox not found or not active."
+        )
+
+    try:
+        files = await list_sandbox_files(sandbox)
 
         return {
             "project_id": id,
@@ -292,60 +296,7 @@ async def download_all_files(id: str):
         )
 
     try:
-        # Get list of files first (excluding node_modules, etc.)
-        list_files_script = """
-import os
-import json
-
-def should_exclude(path):
-    # Exclude patterns
-    exclude_dirs = ['node_modules', '.git', '__pycache__', '.next', 'dist', 'build', '.venv', 'venv']
-    exclude_files = ['.DS_Store', 'package-lock.json', 'yarn.lock']
-    
-    parts = path.split(os.sep)
-    
-    # Check if any part of the path matches excluded directories
-    for part in parts:
-        if part in exclude_dirs:
-            return True
-    
-    # Check if filename matches excluded files
-    filename = os.path.basename(path)
-    if filename in exclude_files:
-        return True
-    
-    return False
-
-def list_files_recursive(path):
-    file_structure = []
-    for root, dirs, files in os.walk(path):
-        # Modify dirs in-place to skip excluded directories
-        dirs[:] = [d for d in dirs if d not in ['node_modules', '.git', '__pycache__', '.next', 'dist', 'build', '.venv', 'venv']]
-        
-        for name in files:
-            relative_path = os.path.relpath(os.path.join(root, name), path)
-            if not should_exclude(relative_path):
-                file_structure.append(relative_path)
-    return file_structure
-
-react_app_path = "/home/user/react-app"
-if os.path.exists(react_app_path):
-    files = list_files_recursive(react_app_path)
-    print(json.dumps(files))
-else:
-    print(json.dumps([]))
-"""
-        
-        await sandbox.files.write("/tmp/list_files.py", list_files_script)
-        proc = await sandbox.commands.run("python /tmp/list_files.py", cwd="/tmp")
-        
-        if proc.exit_code != 0:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Failed to list files: {proc.stderr}"
-            )
-        
-        files = json.loads(proc.stdout)
+        files = await list_sandbox_files(sandbox)
         
         # Create ZIP file in memory
         zip_buffer = io.BytesIO()
@@ -470,29 +421,21 @@ async def ws_listener(websocket: WebSocket, id: str, token: str = None):
             
             print(f"Sending history with {len(messages)} messages and app_url: {chat.app_url if chat else None}")
             
-            if messages:  # Only send if there are messages
-                await websocket.send_json({
-                    "type": "history",
-                    "messages": [
-                        {
-                            "id": msg.id,
-                            "role": msg.role,
-                            "content": msg.content,
-                            "event_type": msg.event_type,
-                            "created_at": msg.created_at.isoformat(),
-                            "tool_calls": msg.tool_calls if hasattr(msg, 'tool_calls') else None
-                        }
-                        for msg in messages
-                    ],
-                    "app_url": chat.app_url if chat else None
-                })
-            else:
-                # Send empty history for new chats
-                await websocket.send_json({
-                    "type": "history",
-                    "messages": [],
-                    "app_url": chat.app_url if chat else None
-                })
+            await websocket.send_json({
+                "type": "history",
+                "messages": [
+                    {
+                        "id": msg.id,
+                        "role": msg.role,
+                        "content": msg.content,
+                        "event_type": msg.event_type,
+                        "created_at": msg.created_at.isoformat(),
+                        "tool_calls": msg.tool_calls if hasattr(msg, 'tool_calls') else None
+                    }
+                    for msg in messages
+                ],
+                "app_url": chat.app_url if chat else None
+            })
             print(f"Successfully sent history for {id}")
             break
     except Exception as e:
