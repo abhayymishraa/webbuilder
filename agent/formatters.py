@@ -5,14 +5,11 @@ import json
 import re
 
 
-def format_json_as_markdown(data: dict, title: str = None) -> str:
+def format_json_as_markdown(data: dict) -> str:
     """
     Format JSON data as readable markdown
     """
     lines = []
-    
-    if title:
-        lines.append(f"## {title}\n")
     
     # Handle plan structure
     if "planTitle" in data or "applicationOverview" in data:
@@ -258,11 +255,6 @@ def format_list_section(items: list, indent: int = 0) -> str:
             lines.append(f"{prefix}- {item}")
     
     return "\n".join(lines)
-
-
-def format_code_block(code: str, language: str = "") -> str:
-    """Format code as markdown code block"""
-    return f"```{language}\n{code}\n```"
 
 
 def format_thinking_message(content: str) -> str:
