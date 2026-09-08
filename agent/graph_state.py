@@ -8,7 +8,6 @@ class GraphState(TypedDict):
 
     project_id: str  # Also serves as chat_id
     user_prompt: str
-    enhanced_prompt: str
 
     # Planning phase
     plan: Optional[Dict[str, Any]]
@@ -29,10 +28,6 @@ class GraphState(TypedDict):
     # Environment
     sandbox: Optional[AsyncSandbox]
     socket: Optional[WebSocket]
-
-    # Node execution tracking
-    current_node: str
-    execution_log: List[Dict[str, Any]]
 
     # Results
     success: bool

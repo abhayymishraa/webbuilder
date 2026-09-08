@@ -43,6 +43,87 @@ async def store_message(chat_id: str, role: str, content: str, event_type: str =
         print(f"Failed to store message: {e}")
 
 
+async def handle_agent_event(
+    event: dict, socket: WebSocket | None, project_id: str | None
+) -> str | None:
+    """Forward and persist agent events, returning completed tool output."""
+    kind = event["event"]
+
+    if kind == "on_chat_model_stream":
+        content = event["data"]["chunk"].content
+        if content:
+            if isinstance(content, list):
+                text_parts = []
+                for block in content:
+                    if isinstance(block, str):
+                        text_parts.append(block)
+                    elif isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif hasattr(block, "text"):
+                        text_parts.append(block.text)
+                content = "\n".join(filter(None, text_parts))
+            else:
+                content = str(content)
+
+            if content and socket:
+                await safe_send_socket(socket, {"e": "thinking", "message": content})
+                if len(content) > 50:
+                    await store_message(
+                        chat_id=project_id,
+                        role="assistant",
+                        content=content,
+                        event_type="thinking",
+                    )
+
+    elif kind == "on_tool_start":
+        tool_name = event.get("name")
+        tool_input = event.get("data", {}).get("input", {})
+        if socket:
+            await safe_send_socket(
+                socket,
+                {
+                    "e": "tool_started",
+                    "tool_name": tool_name,
+                    "tool_input": tool_input,
+                },
+            )
+        await store_message(
+            chat_id=project_id,
+            role="assistant",
+            content=f"Using tool: {tool_name}",
+            event_type="tool_started",
+            tool_calls=[{"name": tool_name, "status": "running", "input": str(tool_input)}],
+        )
+
+    elif kind == "on_tool_end":
+        tool_name = event.get("name")
+        tool_output = event.get("data", {}).get("output")
+        if hasattr(tool_output, "content"):
+            tool_output = tool_output.content
+        elif not isinstance(tool_output, str):
+            tool_output = str(tool_output)
+
+        if socket:
+            await safe_send_socket(
+                socket,
+                {
+                    "e": "tool_completed",
+                    "tool_name": tool_name,
+                    "tool_output": tool_output,
+                },
+            )
+        await store_message(
+            chat_id=project_id,
+            role="assistant",
+            content=f"Completed: {tool_name}\n{tool_output[:200]}",
+            event_type="tool_completed",
+            tool_calls=[{"name": tool_name, "status": "success", "output": tool_output[:500]}],
+        )
+        return str(tool_output)
+
+    return None
+
+
 async def planner_node(state: GraphState) -> GraphState:
     """
     Planner node: Analyzes user prompt and generates comprehensive implementation plan
@@ -57,8 +138,8 @@ async def planner_node(state: GraphState) -> GraphState:
                 }
             )
 
-        enhanced_prompt = state.get("enhanced_prompt", state.get("user_prompt", ""))
-        print(f"INFO: Recieved Prompt {enhanced_prompt}")
+        user_prompt = state.get("user_prompt", "")
+        print(f"INFO: Recieved Prompt {user_prompt}")
         project_id = state.get("project_id", "")
         print(f"INFO: Project ID: {project_id}")
 
@@ -118,7 +199,7 @@ async def planner_node(state: GraphState) -> GraphState:
         {previous_context}
 
         USER REQUEST:
-        {enhanced_prompt}
+        {user_prompt}
 
         Create a detailed plan that includes:
         1. Application overview and purpose
@@ -182,10 +263,6 @@ async def planner_node(state: GraphState) -> GraphState:
 
         new_state = state.copy()
         new_state["plan"] = plan
-        new_state["current_node"] = "planner"
-        new_state["execution_log"].append(
-            {"node": "planner", "status": "completed", "plan": plan}
-        )
 
         # Create formatted plan message
         formatted_plan_msg = create_formatted_message(
@@ -212,11 +289,7 @@ async def planner_node(state: GraphState) -> GraphState:
         print(error_msg)
 
         new_state = state.copy()
-        new_state["current_node"] = "planner"
         new_state["error_message"] = error_msg
-        new_state["execution_log"].append(
-            {"node": "planner", "status": "error", "error": error_msg}
-        )
 
         if socket:
             await safe_send_socket(socket, {"e": "planner_error", "message": error_msg})
@@ -360,83 +433,10 @@ async def builder_node(state: GraphState) -> GraphState:
             async for event in agent_executor.astream_events(
                 {"messages": messages}, version="v1", config=config
             ):
-                kind = event["event"]
-
-                if kind == "on_chat_model_stream":
-                    content = event["data"]["chunk"].content
-                    if content:
-                        # Handle content that could be string or list of content blocks
-                        if isinstance(content, list):
-                            # If content is a list of blocks, extract text
-                            text_parts = []
-                            for block in content:
-                                if isinstance(block, str):
-                                    text_parts.append(block)
-                                elif isinstance(block, dict) and block.get("type") == "text":
-                                    text_parts.append(block.get("text", ""))
-                                elif hasattr(block, "text"):
-                                    text_parts.append(block.text)
-                            content = "\n".join(filter(None, text_parts))
-                        else:
-                            content = str(content)
-                        
-                        if content and socket:
-                            await safe_send_socket(socket, {"e": "thinking", "message": content})
-                            # Store thinking message (batched to avoid too many DB writes)
-                            if len(content) > 50:  # Only store substantial thinking
-                                await store_message(
-                                    chat_id=state.get("project_id"),
-                                    role="assistant",
-                                    content=content,
-                                    event_type="thinking"
-                                )
-
-                elif kind == "on_tool_start":
-                    tool_name = event.get("name")
-                    tool_input = event.get("data", {}).get("input", {})
-                    if socket:
-                        await safe_send_socket(socket, 
-                            {
-                                "e": "tool_started",
-                                "tool_name": tool_name,
-                                "tool_input": tool_input,
-                            }
-                        )
-                    # Store tool start
-                    await store_message(
-                        chat_id=state.get("project_id"),
-                        role="assistant",
-                        content=f"Using tool: {tool_name}",
-                        event_type="tool_started",
-                        tool_calls=[{"name": tool_name, "status": "running", "input": str(tool_input)}]
-                    )
-
-                elif kind == "on_tool_end":
-                    tool_name = event.get("name")
-                    tool_output = event.get("data", {}).get("output")
-                    
-                    if hasattr(tool_output, "content"):
-                        tool_output = tool_output.content
-                    elif not isinstance(tool_output, str):
-                        tool_output = str(tool_output)
-                    
-                    if socket:
-                        await safe_send_socket(socket, 
-                            {
-                                "e": "tool_completed",
-                                "tool_name": tool_name,
-                                "tool_output": tool_output,
-                            }
-                        )
-                    # Store tool completion
-                    await store_message(
-                        chat_id=state.get("project_id"),
-                        role="assistant",
-                        content=f"Completed: {tool_name}\n{tool_output[:200]}",
-                        event_type="tool_completed",
-                        tool_calls=[{"name": tool_name, "status": "success", "output": tool_output[:500]}]
-                    )
-                    
+                tool_output = await handle_agent_event(
+                    event, socket, state.get("project_id")
+                )
+                if event["event"] == "on_tool_end":
                     if "created" in str(tool_output).lower() and "file" in str(tool_output).lower():
                         import re
                         file_matches = re.findall(r"(\w+\.(jsx?|tsx?|css|json))", str(tool_output))
@@ -449,15 +449,6 @@ async def builder_node(state: GraphState) -> GraphState:
             new_state["files_created"] = files_created
             new_state["files_modified"] = files_modified
             print(f"INFO : {files_created}")
-            new_state["current_node"] = "builder"
-            new_state["execution_log"].append(
-                {
-                    "node": "builder",
-                    "status": "completed",
-                    "files_created": files_created,
-                    "files_modified": files_modified,
-                }
-            )
 
             if socket:
                 await safe_send_socket(socket, 
@@ -479,15 +470,6 @@ async def builder_node(state: GraphState) -> GraphState:
             new_state = state.copy()
             new_state["files_created"] = files_created
             new_state["files_modified"] = files_modified
-            new_state["current_node"] = "builder"
-            new_state["execution_log"].append(
-                {
-                    "node": "builder",
-                    "status": "timeout",
-                    "files_created": files_created,
-                    "files_modified": files_modified,
-                }
-            )
 
             if socket:
                 await safe_send_socket(socket, 
@@ -510,15 +492,6 @@ async def builder_node(state: GraphState) -> GraphState:
             new_state = state.copy()
             new_state["files_created"] = files_created
             new_state["files_modified"] = files_modified
-            new_state["current_node"] = "builder"
-            new_state["execution_log"].append(
-                {
-                    "node": "builder",
-                    "status": "error",
-                    "files_created": files_created,
-                    "files_modified": files_modified,
-                }
-            )
 
             if socket:
                 await safe_send_socket(socket, 
@@ -535,11 +508,7 @@ async def builder_node(state: GraphState) -> GraphState:
         print(error_msg)
 
         new_state = state.copy()
-        new_state["current_node"] = "builder"
         new_state["error_message"] = error_msg
-        new_state["execution_log"].append(
-            {"node": "builder", "status": "error", "error": error_msg}
-        )
 
         if socket:
             await safe_send_socket(socket, {"e": "builder_error", "message": error_msg})
@@ -666,82 +635,7 @@ async def code_validator_node(state: GraphState) -> GraphState:
             async for event in validator_agent.astream_events(
                 {"messages": messages}, version="v1", config=config
             ):
-                kind = event["event"]
-
-                if kind == "on_chat_model_stream":
-                    content = event["data"]["chunk"].content
-                    if content:
-                        # Handle content that could be string or list of content blocks
-                        if isinstance(content, list):
-                            # If content is a list of blocks, extract text
-                            text_parts = []
-                            for block in content:
-                                if isinstance(block, str):
-                                    text_parts.append(block)
-                                elif isinstance(block, dict) and block.get("type") == "text":
-                                    text_parts.append(block.get("text", ""))
-                                elif hasattr(block, "text"):
-                                    text_parts.append(block.text)
-                            content = "\n".join(filter(None, text_parts))
-                        else:
-                            content = str(content)
-                        
-                        if content and socket:
-                            await safe_send_socket(socket, {"e": "thinking", "message": content})
-                            # Store thinking message (batched to avoid too many DB writes)
-                            if len(content) > 50:  # Only store substantial thinking
-                                await store_message(
-                                    chat_id=state.get("project_id"),
-                                    role="assistant",
-                                    content=content,
-                                    event_type="thinking"
-                                )
-
-                elif kind == "on_tool_start":
-                    tool_name = event.get("name")
-                    tool_input = event.get("data", {}).get("input", {})
-                    if socket:
-                        await safe_send_socket(socket, 
-                            {
-                                "e": "tool_started",
-                                "tool_name": tool_name,
-                                "tool_input": tool_input,
-                            }
-                        )
-                    # Store tool start
-                    await store_message(
-                        chat_id=state.get("project_id"),
-                        role="assistant",
-                        content=f"Using tool: {tool_name}",
-                        event_type="tool_started",
-                        tool_calls=[{"name": tool_name, "status": "running", "input": str(tool_input)}]
-                    )
-
-                elif kind == "on_tool_end":
-                    tool_name = event.get("name")
-                    tool_output = event.get("data", {}).get("output")
-                    
-                    if hasattr(tool_output, "content"):
-                        tool_output = tool_output.content
-                    elif not isinstance(tool_output, str):
-                        tool_output = str(tool_output)
-                    
-                    if socket:
-                        await safe_send_socket(socket, 
-                            {
-                                "e": "tool_completed",
-                                "tool_name": tool_name,
-                                "tool_output": tool_output,
-                            }
-                        )
-                    # Store tool completion
-                    await store_message(
-                        chat_id=state.get("project_id"),
-                        role="assistant",
-                        content=f"Completed: {tool_name}\n{tool_output[:200]}",
-                        event_type="tool_completed",
-                        tool_calls=[{"name": tool_name, "status": "success", "output": tool_output[:500]}]
-                    )
+                await handle_agent_event(event, socket, state.get("project_id"))
 
             print(f"Code validator: Agent execution completed")
             print("Code validator: Code review and dependency checking completed")
@@ -756,7 +650,6 @@ async def code_validator_node(state: GraphState) -> GraphState:
 
             new_state = state.copy()
             new_state["validation_errors"] = validation_errors
-            new_state["current_node"] = "code_validator"
 
             if validation_errors:
                 retry_count = new_state.get("retry_count", {})
@@ -770,14 +663,6 @@ async def code_validator_node(state: GraphState) -> GraphState:
                 )
             else:
                 print("Code validator: No validation errors found")
-
-            new_state["execution_log"].append(
-                {
-                    "node": "code_validator",
-                    "status": "completed",
-                    "validation_errors": validation_errors,
-                }
-            )
 
             if socket:
                 await safe_send_socket(socket, 
@@ -801,7 +686,6 @@ async def code_validator_node(state: GraphState) -> GraphState:
                     "details": "Validation took too long",
                 }
             ]
-            new_state["current_node"] = "code_validator"
 
             if socket:
                 await safe_send_socket(socket, 
@@ -819,7 +703,6 @@ async def code_validator_node(state: GraphState) -> GraphState:
         traceback.print_exc()
 
         new_state = state.copy()
-        new_state["current_node"] = "code_validator"
         new_state["error_message"] = error_msg
         new_state["validation_errors"] = [
             {
@@ -828,9 +711,6 @@ async def code_validator_node(state: GraphState) -> GraphState:
                 "details": "Code validator crashed",
             }
         ]
-        new_state["execution_log"].append(
-            {"node": "code_validator", "status": "error", "error": error_msg}
-        )
 
         if socket:
             await safe_send_socket(socket, {"e": "code_validator_error", "message": error_msg})
@@ -894,7 +774,6 @@ async def application_checker_node(state: GraphState) -> GraphState:
 
         new_state = state.copy()
         new_state["runtime_errors"] = runtime_errors
-        new_state["current_node"] = "application_checker"
 
         if runtime_errors:
             retry_count = new_state.get("retry_count", {})
@@ -907,14 +786,6 @@ async def application_checker_node(state: GraphState) -> GraphState:
             print(
                 "Application checker: No runtime errors found - setting success to True"
             )
-
-        new_state["execution_log"].append(
-            {
-                "node": "application_checker",
-                "status": "completed",
-                "runtime_errors": runtime_errors,
-            }
-        )
 
         if socket:
             await safe_send_socket(socket, 
@@ -932,11 +803,7 @@ async def application_checker_node(state: GraphState) -> GraphState:
         print(error_msg)
 
         new_state = state.copy()
-        new_state["current_node"] = "application_checker"
         new_state["error_message"] = error_msg
-        new_state["execution_log"].append(
-            {"node": "application_checker", "status": "error", "error": error_msg}
-        )
 
         if socket:
             await safe_send_socket(socket, {"e": "app_check_error", "message": error_msg})

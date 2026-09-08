@@ -1,4 +1,4 @@
-from .graph_builder import get_workflow
+from .graph_builder import run_workflow
 from typing import Dict
 from e2b_code_interpreter import AsyncSandbox
 from dotenv import load_dotenv
@@ -12,12 +12,10 @@ import time
 import traceback
 import uuid
 from utils.store import load_json_store, save_json_store
-import time
 
 load_dotenv()
 
 TEMPLATE_ID = "9jwfe1bxhxidt50x0a6o"
-base_path = "/home/user/react-app"
 
 
 class Service:
@@ -27,7 +25,6 @@ class Service:
 
     def __init__(self) -> None:
         self.sandboxes: Dict[str, AsyncSandbox] = {}
-        self.workflow = get_workflow()
         self.project_timestamps: Dict[str, float] = {}
         self.sandbox_timeout = 1800 
         self.storage_base_path = os.path.join(
@@ -69,13 +66,6 @@ class Service:
         await self._restore_files_from_disk(id, self.sandboxes[id])
 
         return self.sandboxes[id]
-
-    async def close_sandbox(self, id: str):
-        """Close and cleanup E2B sandbox"""
-        if id in self.sandboxes:
-            sandbox = self.sandboxes.pop(id)
-            await sandbox.kill()
-            print(f"closed sandbox: {id}")
 
     async def _restore_files_from_disk(self, project_id: str, sandbox: AsyncSandbox):
         """Restore files from disk to sandbox"""
@@ -160,76 +150,6 @@ class Service:
         except Exception as e:
             print(f"Failed to save conversation history: {e}")
 
-    async def snapshot_project_files(self, project_id: str):
-        """Snapshot all source files from sandbox to disk"""
-
-        if project_id not in self.sandboxes:
-            return
-
-        sandbox = self.sandboxes[project_id]
-
-        project_dir = os.path.join(self.storage_base_path, project_id)
-        os.makedirs(project_dir, exist_ok=True)
-
-        paths_to_snapshot = [
-            "src",
-            "public",
-            "package.json",
-            "index.html",
-        ]
-
-        files_stored = []
-
-        for path in paths_to_snapshot:
-            try:
-                full_path = f"/home/user/react-app/{path}"
-                result = await sandbox.commands.run(
-                    f"test -f {full_path} && echo 'file' || test -d {full_path} && echo 'dir'",
-                    cwd="/home/user/react-app",
-                )
-
-                if "file" in result.stdout:
-                    content = await sandbox.files.read(full_path)
-                    local_file = os.path.join(project_dir, path.replace("/", "_"))
-                    with open(local_file, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    files_stored.append(path)
-
-                elif "dir" in result.stdout:
-                    find_result = await sandbox.commands.run(
-                        f"find {path} -type f", cwd="/home/user/react-app"
-                    )
-                    file_paths = find_result.stdout.strip().split("\n")
-
-                    for file_path in file_paths:
-                        if file_path and not file_path.startswith("."):
-                            try:
-                                content = await sandbox.files.read(
-                                    f"/home/user/react-app/{file_path}"
-                                )
-                                local_file = os.path.join(
-                                    project_dir, file_path.replace("/", "_")
-                                )
-                                with open(local_file, "w", encoding="utf-8") as f:
-                                    f.write(content)
-                                files_stored.append(file_path)
-                            except Exception as e:
-                                print(f"Failed to snapshot {file_path}: {e}")
-            except Exception as e:
-                print(f"Failed to snapshot {path}: {e}")
-
-        # Save metadata
-        metadata = {
-            "project_id": project_id,
-            "files": files_stored,
-            "timestamp": time.time(),
-        }
-        metadata_file = os.path.join(project_dir, "metadata.json")
-        with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=2)
-
-        print(f"Snapshotted {len(files_stored)} files for project {project_id} to disk")
-
     async def _store_message(
         self,
         chat_id: str,
@@ -253,14 +173,6 @@ class Service:
             db.add(message)
             await db.commit()
             break
-
-    async def _send_ws_message(self, socket: WebSocket, data: dict):
-        """Helper to safely send WebSocket message"""
-        try:
-            await socket.send_json(data)
-        except Exception as e:
-            print(f"Failed to send WebSocket message: {e}")
-            return
 
     async def run_agent_stream(self, prompt: str, id: str, socket: WebSocket):
         """
@@ -287,7 +199,6 @@ class Service:
             initial_state = {
                 "project_id": id,
                 "user_prompt": prompt,
-                "enhanced_prompt": prompt,
                 "plan": None,
                 "files_created": [],
                 "files_modified": [],
@@ -301,8 +212,6 @@ class Service:
                 "max_retries": 3,
                 "sandbox": sandbox,
                 "socket": socket,
-                "current_node": "",
-                "execution_log": [],
                 "success": False,
                 "error_message": None,
             }
@@ -311,7 +220,7 @@ class Service:
             print(f"Project ID: {id}")
 
             # Run the workflow
-            final_state = await self.workflow.run_workflow(initial_state)
+            final_state = await run_workflow(initial_state)
 
             # Get the final URL
             host = sandbox.get_host(port=5173)

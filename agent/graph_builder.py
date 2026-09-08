@@ -50,49 +50,17 @@ def create_langgraph_workflow():
     return app
 
 
-class LangGraphWorkflow:
-    """
-    Wrapper class for the LangGraph workflow with additional functionality
-    """
-
-    def __init__(self):
-        self.app = create_langgraph_workflow()
-
-    async def run_workflow(self, initial_state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Run the workflow with the given initial state
-
-        Args:
-            initial_state: Initial state for the workflow (must match GraphState schema)
-
-        Returns:
-            Final state after workflow execution
-        """
-        try:
-            # LangGraph handles state management based on GraphState TypedDict
-            final_state = await self.app.ainvoke(initial_state)
-            return final_state
-
-        except Exception as e:
-            print(f"Workflow execution error: {e}")
-            # Return error state
-            return {
-                **initial_state,
-                "success": False,
-                "error_message": str(e),
-                "execution_log": [
-                    {"node": "workflow", "status": "error", "error": str(e)}
-                ],
-            }
-
-langgraph_workflow = LangGraphWorkflow()
+workflow = create_langgraph_workflow()
 
 
-def get_workflow() -> LangGraphWorkflow:
-    """
-    Get the main workflow instance
-
-    Returns:
-        LangGraphWorkflow instance
-    """
-    return langgraph_workflow
+async def run_workflow(initial_state: Dict[str, Any]) -> Dict[str, Any]:
+    """Run the compiled workflow, returning an error state on failure."""
+    try:
+        return await workflow.ainvoke(initial_state)
+    except Exception as e:
+        print(f"Workflow execution error: {e}")
+        return {
+            **initial_state,
+            "success": False,
+            "error_message": str(e),
+        }
