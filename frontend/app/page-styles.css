@@ -16,55 +16,26 @@
   /* Border Radius */
   --custom-radius: 0.5rem;
 
-  /* Spacing */
-  --custom-spacing: 0.25rem;
-
   /* Color Template - Custom Color Scheme */
   /* Primary Colors */
   --landing-primary: #737373;
   --landing-primary-foreground: #fafafa;
 
-  /* Secondary Colors */
-  --landing-secondary: #262626;
-  --landing-secondary-foreground: #fafafa;
-
   /* Accent Colors */
   --landing-accent: #404040;
-  --landing-accent-foreground: #fafafa;
 
   /* Base Colors */
-  --landing-background: #0a0a0a;
   --landing-foreground: #fafafa;
 
   /* Card Colors */
   --landing-card: #191919;
-  --landing-card-foreground: #fafafa;
-
-  /* Popover Colors */
-  --landing-popover: #262626;
-  --landing-popover-foreground: #fafafa;
 
   /* Muted Colors */
-  --landing-muted: #262626;
   --landing-muted-foreground: #a1a1a1;
-
-  /* Destructive Colors */
-  --landing-destructive: #ff6467;
-  --landing-destructive-foreground: #262626;
 
   /* Border & Input Colors */
   --landing-border: #383838;
-  --landing-input: #525252;
   --landing-ring: #737373;
-
-  /* Sidebar Colors */
-  --landing-sidebar: #171717;
-  --landing-sidebar-foreground: #fafafa;
-  --landing-sidebar-primary: #fafafa;
-  --landing-sidebar-primary-foreground: #171717;
-  --landing-sidebar-accent: #262626;
-  --landing-sidebar-accent-foreground: #fafafa;
-  --landing-sidebar-border: #ffffff;
 
   /* Apply colors - background is now transparent to show radial gradient */
   background-color: transparent;
@@ -115,34 +86,6 @@
   letter-spacing: 0.025em;
 }
 
-/* Color Utilities for Landing Page */
-
-/* Text Colors */
-.landing-page-wrapper .text-muted-foreground {
-  color: var(--landing-muted-foreground);
-}
-
-.landing-page-wrapper .text-primary {
-  color: var(--landing-primary);
-}
-
-/* Background Colors */
-.landing-page-wrapper .bg-card {
-  background-color: var(--landing-card);
-}
-
-.landing-page-wrapper .bg-secondary {
-  background-color: var(--landing-secondary);
-}
-
-.landing-page-wrapper .bg-accent {
-  background-color: var(--landing-accent);
-}
-
-.landing-page-wrapper .bg-muted {
-  background-color: var(--landing-muted);
-}
-
 /* Border Colors */
 .landing-page-wrapper .border-border,
 .landing-page-wrapper .border {
@@ -162,10 +105,6 @@
 
 .landing-page-wrapper .bg-neutral-900 {
   background-color: var(--landing-card);
-}
-
-.landing-page-wrapper .bg-neutral-800 {
-  background-color: var(--landing-secondary);
 }
 
 .landing-page-wrapper .border-neutral-700,
@@ -199,20 +138,6 @@
 /* Accent colors for icons and highlights */
 .landing-page-wrapper .text-blue-400 {
   color: var(--landing-primary);
-}
-
-.landing-page-wrapper .text-purple-400,
-.landing-page-wrapper .text-purple-500 {
-  color: var(--landing-accent);
-}
-
-.landing-page-wrapper .bg-blue-500 {
-  background-color: var(--landing-primary);
-}
-
-.landing-page-wrapper .bg-purple-500,
-.landing-page-wrapper .bg-pink-500 {
-  background-color: var(--landing-accent);
 }
 
 .landing-page-wrapper .bg-green-500 {
@@ -249,14 +174,6 @@
   --tw-gradient-from: var(--landing-primary);
   --tw-gradient-to: rgb(115 115 115 / 0);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
-}
-
-.landing-page-wrapper .from-blue-500 {
-  --tw-gradient-from: var(--landing-primary);
-}
-
-.landing-page-wrapper .to-purple-500 {
-  --tw-gradient-to: var(--landing-accent);
 }
 
 .landing-page-wrapper .hover\:from-blue-500:hover {
