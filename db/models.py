@@ -74,10 +74,6 @@ class User(Base):
         time_diff = self.tokens_reset_at - datetime.now(timezone.utc)
         return max(0, time_diff.total_seconds() / 3600)
 
-    def update_last_query(self):
-        """Update the last query timestamp"""
-        self.last_query_at = datetime.now(timezone.utc)
-
 
 class Chat(Base):
     __tablename__ = "chats"
