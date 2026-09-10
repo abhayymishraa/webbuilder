@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowUp, Plus, Paperclip } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
 interface ChatInputProps {
   input: string;
@@ -31,18 +31,6 @@ export function ChatInput({
               disabled={!wsConnected || isBuilding}
             />
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className="p-2 hover:bg-white/10 rounded transition text-white/60 hover:text-white"
-              >
-                <Plus size={18} />
-              </button>
-              <button
-                type="button"
-                className="p-2 hover:bg-white/10 rounded transition text-white/60 hover:text-white"
-              >
-                <Paperclip size={18} />
-              </button>
               <Button
                 type="submit"
                 disabled={!wsConnected || !input.trim() || isBuilding}
