@@ -1,27 +1,7 @@
 import { Loader2, ChevronDown, ChevronRight, Code2 } from "lucide-react";
 import { useState } from "react";
 import { FormattedMessage } from "./FormattedMessage";
-
-interface ToolCall {
-  name: string;
-  status: "success" | "error" | "running";
-  output?: string;
-}
-
-interface ActiveToolCall {
-  name: string;
-  status: "running" | "completed";
-  output?: string;
-}
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  formatted?: string; // New field for formatted markdown
-  event_type?: string;
-  tool_calls?: ToolCall[];
-}
+import type { Message, ActiveToolCall } from "@/lib/chat-types";
 
 interface MessageBubbleProps {
   message: Message;
@@ -221,7 +201,6 @@ export function MessageBubble({
               <FormattedMessage
                 content={message.content}
                 formatted={message.formatted}
-                type={message.event_type}
               />
             ) : (
               <div className="text-sm leading-relaxed space-y-2">

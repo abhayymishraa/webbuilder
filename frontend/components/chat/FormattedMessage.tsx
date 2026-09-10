@@ -6,39 +6,14 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 interface FormattedMessageProps {
   content: string;
   formatted?: string;
-  type?: string;
 }
 
 export function FormattedMessage({
   content,
   formatted,
-  type,
 }: FormattedMessageProps) {
   // Use formatted content if available, otherwise use raw content
   const displayContent = formatted || content;
-
-  // Check if content is likely JSON (unformatted)
-  const isJson =
-    !formatted &&
-    (content.trim().startsWith("{") || content.trim().startsWith("["));
-
-  if (isJson) {
-    try {
-      const parsed = JSON.parse(content);
-      return (
-        <details className="my-2 bg-white/5 rounded-lg border border-white/10">
-          <summary className="cursor-pointer px-4 py-2 font-medium text-white/70 hover:text-white">
-            View Raw Data
-          </summary>
-          <pre className="px-4 pb-4 text-xs text-white/60 overflow-x-auto">
-            {JSON.stringify(parsed, null, 2)}
-          </pre>
-        </details>
-      );
-    } catch {
-      // If parsing fails, render as plain text
-    }
-  }
 
   return (
     <div className="formatted-message prose prose-invert max-w-none">
