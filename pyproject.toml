@@ -6,18 +6,19 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "asyncpg>=0.30.0",
-    "black>=25.9.0",
-    "dotenv>=0.9.9",
+    "python-dotenv>=1.1.1",
     "e2b-code-interpreter>=2.2.0",
     "fastapi>=0.119.0",
     "greenlet>=3.2.4",
-    "langchain>=0.3.27",
+    "langchain-core>=0.3.79,<0.4",
     "langchain-google-genai>=2.1.12",
     "langgraph>=0.6.10",
     "passlib>=1.7.4",
     "pydantic[email]>=2.12.2",
     "python-jose[cryptography]>=3.5.0",
-    "python-multipart>=0.0.20",
     "sqlalchemy>=2.0.44",
     "uvicorn[standard]>=0.38.0",
 ]
+
+[dependency-groups]
+dev = ["black>=25.9.0"]

@@ -9,3 +9,9 @@ wheels/
 # Virtual environments
 .venv
 .env
+.env.*
+!.env.example
+.vercel/
+graphify-out/
+deploy/runtime.env
+deploy/deployment.env

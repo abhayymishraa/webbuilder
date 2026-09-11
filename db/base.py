@@ -11,16 +11,17 @@ DATABASE_URL = os.getenv(
 # Production-ready settings for Supabase connection pooler
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,
+    echo=False,
     future=True,
     pool_pre_ping=True,  # Test connections before using them
-    pool_size=5,  # Number of connections to keep open
-    max_overflow=10,  # Additional connections when pool is full
+    pool_size=2,
+    max_overflow=2,
+    pool_timeout=5,
     pool_recycle=3600,  # Recycle connections after 1 hour
     connect_args={
         "statement_cache_size": 0,  # Required for pgbouncer
         "server_settings": {
-            "application_name": "lovable-backend",
+            "application_name": "webbuilder",
             "jit": "off"
         }
     }

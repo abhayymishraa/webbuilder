@@ -1,0 +1,13 @@
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!main.py
+!agent/
+!agent/*.py
+!auth/
+!auth/*.py
+!db/
+!db/*.py
+!utils/
+!utils/*.py

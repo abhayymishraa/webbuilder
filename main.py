@@ -11,7 +11,7 @@ import zipfile
 from fastapi import Depends
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from agent.service import agent_service
 from auth.router import router
 from db.models import User, Chat, Message
@@ -26,8 +26,9 @@ from auth.utils import decode_token
 app = FastAPI(title="lovable")
 
 origins = [
-    "http://localhost:3000",
-    "https://webbuilder.elevenai.xyz",
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
 ]
 
 app.add_middleware(
@@ -51,6 +52,15 @@ class ChatPayload(BaseModel):
 @app.get("/")
 async def get_health():
     return {"message": "Welome", "status": "Healthy"}
+
+
+@app.get("/health/ready")
+async def get_readiness(db: AsyncSession = Depends(get_db)):
+    try:
+        await asyncio.wait_for(db.execute(text("SELECT 1")), timeout=3)
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable") from None
+    return {"status": "ready"}
 
 
 @app.get("/chats/{id}/messages")
