@@ -194,7 +194,6 @@ export function handleWebSocketMessage(
             .map((item: any) => {
               if (typeof item === "string") return item;
               if (item.text) return item.text;
-              if (item.type === "text" && item.text) return item.text;
               return JSON.stringify(item);
             })
             .join("\n");
@@ -244,7 +243,6 @@ export function handleWebSocketMessage(
     if (data.e === "planner_complete") {
       const planContent = data.content || data.plan;
       const formatted = data.formatted as string | undefined;
-      const messageContent = data.message || "Planning completed";
 
       handlers.setMessages((prev) => [
         ...prev,
@@ -265,37 +263,4 @@ export function handleWebSocketMessage(
   } catch (err) {
     console.error("Failed to parse WebSocket message:", err);
   }
-}
-
-/**
- * Creates WebSocket connection handlers
- */
-export function createWebSocketHandlers(
-  chatId: string,
-  onConnected: () => void,
-  onDisconnected: () => void,
-  onError: (error: Event) => void,
-  onMessage: (event: MessageEvent) => void,
-) {
-  return {
-    onopen: () => {
-      console.log("WebSocket connected for chat:", chatId);
-      onConnected();
-    },
-    onerror: (error: Event) => {
-      onError(error);
-    },
-    onmessage: (event: MessageEvent) => {
-      onMessage(event);
-    },
-    onclose: (event: CloseEvent) => {
-      console.log(
-        "⛔ WebSocket disconnected, code:",
-        event.code,
-        "reason:",
-        event.reason,
-      );
-      onDisconnected();
-    },
-  };
 }

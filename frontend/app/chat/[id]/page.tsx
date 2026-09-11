@@ -13,10 +13,7 @@ import {
   ChatInput,
 } from "@/components/chat";
 import { consolidateMessages, getAllToolCalls } from "@/lib/chat-utils";
-import {
-  handleWebSocketMessage,
-  createWebSocketHandlers,
-} from "@/lib/websocket-handlers";
+import { handleWebSocketMessage } from "@/lib/websocket-handlers";
 import type { Message, ActiveToolCall } from "@/lib/chat-types";
 
 export default function ChatIdPage() {
@@ -244,33 +241,33 @@ export default function ChatIdPage() {
           console.log("WebSocket URL being used:", wsUrl);
           const ws = new WebSocket(wsUrl);
 
-          // Create handlers using utility
-          const wsHandlers = createWebSocketHandlers(
-            chatId,
-            () => {
-              setWsConnected(true);
-              setError(null);
-            },
-            () => setWsConnected(false),
-            () => setWsConnected(false),
-            (event) =>
-              handleWebSocketMessage(event, {
-                setCurrentTool,
-                setIsBuilding,
-                pollUrlUntilReady,
-                setMessages,
-                setAppUrl,
-                setError,
-                setUserData,
-                consolidateMessages,
-                currentTool,
-              }),
-          );
-
-          ws.onopen = wsHandlers.onopen;
-          ws.onerror = wsHandlers.onerror;
-          ws.onmessage = wsHandlers.onmessage;
-          ws.onclose = wsHandlers.onclose;
+          ws.onopen = () => {
+            console.log("WebSocket connected for chat:", chatId);
+            setWsConnected(true);
+            setError(null);
+          };
+          ws.onerror = () => setWsConnected(false);
+          ws.onmessage = (event) =>
+            handleWebSocketMessage(event, {
+              setCurrentTool,
+              setIsBuilding,
+              pollUrlUntilReady,
+              setMessages,
+              setAppUrl,
+              setError,
+              setUserData,
+              consolidateMessages,
+              currentTool,
+            });
+          ws.onclose = (event) => {
+            console.log(
+              "⛔ WebSocket disconnected, code:",
+              event.code,
+              "reason:",
+              event.reason,
+            );
+            setWsConnected(false);
+          };
 
           wsRef.current = ws;
         } catch (err) {
