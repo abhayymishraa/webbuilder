@@ -83,17 +83,5 @@ export function consolidateMessages(msgs: Message[]): Message[] {
  * Gets all tool calls from message history
  */
 export function getAllToolCalls(messages: Message[]) {
-  const allTools: Array<{
-    name: string;
-    status: "success" | "error" | "running";
-    output?: string;
-  }> = [];
-
-  messages.forEach((msg) => {
-    if (msg.tool_calls && msg.tool_calls.length > 0) {
-      allTools.push(...msg.tool_calls);
-    }
-  });
-
-  return allTools;
+  return messages.flatMap((msg) => msg.tool_calls ?? []);
 }
