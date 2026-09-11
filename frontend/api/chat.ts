@@ -20,18 +20,4 @@ export const chatApi = {
     const response = await apiClient.get<{ projects: Project[] }>("projects");
     return response.data;
   },
-
-  /**
-   * Check if a URL is accessible (health check)
-   */
-  checkUrlHealth: async (url: string): Promise<boolean> => {
-    try {
-      const response = await apiClient.head(url, {
-        timeout: 5000, // 5 seconds for health check
-      });
-      return response.status === 200;
-    } catch {
-      return false;
-    }
-  },
 };

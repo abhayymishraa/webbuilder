@@ -45,8 +45,3 @@ export interface Project {
   app_url: string | null;
   created_at: string;
 }
-
-export interface ApiError {
-  detail: string;
-  status_code?: number;
-}

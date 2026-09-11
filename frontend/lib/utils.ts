@@ -5,12 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Public runtime config (Next.js will inline NEXT_PUBLIC_* at build time)
-// Provide sensible defaults for local development to avoid undefined values.
-export const API_URL: string =
-  (process.env.NEXT_PUBLIC_API_URL as string | undefined) ??
-  "http://localhost:8000";
-
 // Determine WS_URL based on whether we're in browser and HTTPS
 const getWsUrl = (): string => {
   const configUrl = process.env.NEXT_PUBLIC_WS_URL;
@@ -32,13 +26,3 @@ const getWsUrl = (): string => {
 };
 
 export const WS_URL: string = getWsUrl();
-
-// Shared user payload shape used by frontend when reading from localStorage
-export type UserData = {
-  id?: string;
-  email: string;
-  name?: string;
-  tokens_remaining?: number;
-  tokens_reset_at?: string;
-  [key: string]: unknown;
-};
