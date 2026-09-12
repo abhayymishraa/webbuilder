@@ -15,3 +15,5 @@ wheels/
 graphify-out/
 deploy/runtime.env
 deploy/deployment.env
+.agents/
+.agents

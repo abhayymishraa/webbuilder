@@ -23,41 +23,50 @@ The VM runs only the backend container, persistent project files, and Caddy.
 
 ## Local development
 
-Requires Python 3.12+, uv, Node.js 22+, and PostgreSQL. Keep credentials in an
-ignored `.env` file or a private file outside this repository:
+Docker Compose runs only PostgreSQL. The frontend and backend run on your machine.
+Requires Docker Compose v2, Python 3.12+, uv, Node.js 22+, and make.
+
+For a fresh checkout, copy `.env.example` to `.env` and
+`frontend/.env.example` to `frontend/.env.local`. Fill the OpenAI and E2B
+credentials and a random `SECRET_KEY` of at least 32 characters in `.env`.
+Keep `DATABASE_URL` aligned with the `POSTGRES_*` values. Local frontend URLs
+and `ALLOWED_ORIGINS` are already configured in these files.
+Install dependencies once with `uv sync` and `npm --prefix frontend ci`.
+
+Run these commands from the repository root:
 
 ```bash
-cp deploy/runtime.env.example .env
-# Fill in DATABASE_URL, OPENAI_API_KEY, E2B_API_KEY, E2B_TEMPLATE_ID,
-# SECRET_KEY, and ALLOWED_ORIGINS before running the following commands.
-uv sync
-uv run --env-file .env python -m db.migrate
-uv run --env-file .env uvicorn main:app --reload
+# Dependency: PostgreSQL on localhost:5432; waits until ready.
+docker compose up -d --wait
 ```
-
-`SECRET_KEY` must be a random secret with at least 32 characters in production.
-The database driver accepts Neon's standard PostgreSQL URL, including
-`sslmode=require&channel_binding=require`, and verifies the TLS certificate.
-`db.migrate` creates missing tables, including `runs`, without dropping data; changes to
-existing columns require an explicit migration before deploying changed models.
-
-Configure `frontend/.env.local`:
-
-```text
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8000
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
-```
-
-Then start the frontend:
 
 ```bash
-cd frontend
-npm ci
-npm run dev
+# Backend: localhost:8000 (in its own terminal).
+make backend
 ```
 
-Set backend `ALLOWED_ORIGINS=http://localhost:3000` for local development.
+```bash
+# Frontend: localhost:3000 (in its own terminal).
+make frontend
+```
+
+`make backend` creates missing database tables before starting Uvicorn with
+reload. Existing-column changes still require explicit migrations. This is a
+fresh local database; it does not contain your production accounts or projects.
+Open http://localhost:3000 and create a local account. AI generation still uses
+the configured OpenAI and E2B services.
+
+Use the `webbuilder-react-verified` E2B template (`xjklh0xbjh3wpgu0w306` for
+the existing deployment account), or build your own from `sandbox/Dockerfile`.
+The older template lacks Playwright under `/opt/webbuilder-checks` and cannot
+run this backend's browser checks. The runner checks browser tooling before
+calling the model and stops with a setup error if it is unavailable.
+After changing `.env`, stop and restart `make backend`; Uvicorn source reload
+does not reload the environment inherited from `uv run`.
+
+Stop each app with Ctrl+C. Stop PostgreSQL with `docker compose down`; its named
+volume preserves data. Run `docker compose logs -f postgres` for database logs.
+The production stack remains in `deploy/compose.yaml`.
 
 ## E2B template
 
