@@ -5,9 +5,8 @@
 !main.py
 !agent/
 !agent/*.py
+!agent/*.cjs
 !auth/
 !auth/*.py
 !db/
 !db/*.py
-!utils/
-!utils/*.py

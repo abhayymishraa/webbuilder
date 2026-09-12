@@ -37,21 +37,6 @@ class User(Base):
         "Chat", back_populates="user", cascade="all, delete-orphan"
     )
 
-    def can_make_query(self) -> bool:
-        """Check if user can make a query based on rate limiting and tokens"""
-        # Special user gets unlimited access
-        if self.email == "grabhaymishra@gmail.com":
-            return True
-
-        # Check if we need to reset tokens (24 hours passed)
-        if self.tokens_reset_at is None or datetime.now(timezone.utc) >= self.tokens_reset_at:
-            # Reset tokens
-            self.tokens_remaining = 2
-            self.tokens_reset_at = datetime.now(timezone.utc) + timedelta(hours=24)
-            return True
-        
-        return self.tokens_remaining > 0
-
     def use_token(self) -> bool:
         """Use one token and return True if successful, False if no tokens left"""
         if self.email == "grabhaymishra@gmail.com":
@@ -66,13 +51,6 @@ class User(Base):
             self.last_query_at = datetime.now(timezone.utc)
             return True
         return False
-    
-    def get_time_until_reset(self) -> float:
-        """Get hours until token reset"""
-        if self.tokens_reset_at is None:
-            return 0
-        time_diff = self.tokens_reset_at - datetime.now(timezone.utc)
-        return max(0, time_diff.total_seconds() / 3600)
 
 
 class Chat(Base):
@@ -112,3 +90,17 @@ class Message(Base):
     )
 
     chat: Mapped["Chat"] = relationship("Chat", back_populates="messages")
+
+
+class Run(Base):
+    """Bounded activity log and durable outcome; execution stays in one API worker."""
+    __tablename__ = 'runs'
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(ForeignKey('chats.id', ondelete='CASCADE'), index=True)
+    status: Mapped[str] = mapped_column(String(24), default='running', index=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    events: Mapped[list] = mapped_column(JSON, default=list)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

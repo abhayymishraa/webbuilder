@@ -17,7 +17,6 @@ COPY main.py ./
 COPY agent/ ./agent/
 COPY auth/ ./auth/
 COPY db/ ./db/
-COPY utils/ ./utils/
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=6s --start-period=60s --retries=3 \
