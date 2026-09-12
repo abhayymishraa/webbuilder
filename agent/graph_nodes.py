@@ -233,9 +233,10 @@ async def planner_node(state: GraphState) -> GraphState:
         )
 
         response = await llm.ainvoke(messages)
+        plan_text = response.text()
 
         # Format the plan preview for better display
-        plan_preview = response.content[:500] if len(response.content) > 500 else response.content
+        plan_preview = plan_text[:500]
         formatted_preview = create_formatted_message("thinking", plan_preview)
         
         if socket:
@@ -250,10 +251,10 @@ async def planner_node(state: GraphState) -> GraphState:
         )
 
         try:
-            plan = json.loads(response.content)
+            plan = json.loads(plan_text)
         except json.JSONDecodeError:
             plan = {
-                "overview": response.content,
+                "overview": plan_text,
                 "components": [],
                 "pages": [],
                 "dependencies": [],
