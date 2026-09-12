@@ -1,4 +1,13 @@
-import { Eye, FileCode, Globe, ExternalLink } from "lucide-react";
+import {
+  Eye,
+  FileCode,
+  Globe,
+  ExternalLink,
+  Monitor,
+  Smartphone,
+  Tablet,
+  RotateCcw,
+} from "lucide-react";
 import { useState } from "react";
 import { FileViewer } from "./FileViewer";
 
@@ -8,7 +17,6 @@ interface PreviewPanelProps {
   files: string[];
   projectId: string;
 }
-
 type TabType = "preview" | "files";
 
 export function PreviewPanel({
@@ -18,82 +26,113 @@ export function PreviewPanel({
   projectId,
 }: PreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>("preview");
-
+  const [viewport, setViewport] = useState("desktop");
+  const [refresh, setRefresh] = useState(0);
   return (
-    <div
-      className="flex flex-col bg-black/50 border-l border-white/5"
-      style={{
-        width: `${previewWidth}%`,
-      }}
+    <section
+      className="ember-preview"
+      aria-label="App workspace"
+      data-viewport={viewport}
+      style={{ width: `${previewWidth}%` }}
     >
-      {/* Tabs Header */}
-      <div className="flex items-center justify-between border-b border-white/5 bg-black/30">
-        <div className="flex">
+      <div className="ember-preview-toolbar">
+        <div className="ember-row" role="group" aria-label="Preview views">
           <button
+            className="ember-tab"
+            aria-pressed={activeTab === "preview"}
             onClick={() => setActiveTab("preview")}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
-              activeTab === "preview"
-                ? "text-white border-b-2 border-white bg-white/5"
-                : "text-white/50 hover:text-white/80 hover:bg-white/5"
-            }`}
           >
-            <Globe className="w-3.5 h-3.5" />
+            <Globe size={14} />
             Preview
           </button>
           <button
+            className="ember-tab"
+            aria-pressed={activeTab === "files"}
             onClick={() => setActiveTab("files")}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
-              activeTab === "files"
-                ? "text-white border-b-2 border-white bg-white/5"
-                : "text-white/50 hover:text-white/80 hover:bg-white/5"
-            }`}
           >
-            <FileCode className="w-3.5 h-3.5" />
-            Files {files.length > 0 && `(${files.length})`}
+            <FileCode size={14} />
+            Files{files.length ? ` (${files.length})` : ""}
           </button>
         </div>
-
-        {/* Open in New Tab button - only shows when URL is available */}
-        {appUrl && (
-          <button
-            onClick={() => window.open(appUrl, "_blank")}
-            className="flex items-center gap-1.5 px-3 py-2 mx-2 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 rounded transition-colors"
-            title="Open in new tab"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Open
-          </button>
-        )}
+        <div className="ember-row">
+          {activeTab === "preview" && (
+            <>
+              <button
+                className="ember-icon"
+                aria-label="Desktop preview"
+                aria-pressed={viewport === "desktop"}
+                onClick={() => setViewport("desktop")}
+              >
+                <Monitor size={15} />
+              </button>
+              <button
+                className="ember-icon"
+                aria-label="Tablet preview"
+                aria-pressed={viewport === "tablet"}
+                onClick={() => setViewport("tablet")}
+              >
+                <Tablet size={15} />
+              </button>
+              <button
+                className="ember-icon"
+                aria-label="Mobile preview"
+                aria-pressed={viewport === "mobile"}
+                onClick={() => setViewport("mobile")}
+              >
+                <Smartphone size={15} />
+              </button>
+              <button
+                className="ember-icon"
+                disabled={!appUrl}
+                aria-label="Reload preview"
+                onClick={() => setRefresh((value) => value + 1)}
+              >
+                <RotateCcw size={14} />
+              </button>
+            </>
+          )}
+          {appUrl && (
+            <a
+              href={appUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ember-icon"
+              aria-label="Open preview in new tab"
+            >
+              <ExternalLink size={15} />
+            </a>
+          )}
+        </div>
       </div>
-
-      {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === "preview" ? (
-          <div className="h-full p-6">
-            {appUrl ? (
-              <div className="w-full h-full rounded-lg overflow-hidden border border-white/10">
-                <iframe
-                  src={appUrl}
-                  title="App Preview"
-                  className="w-full h-full"
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-                />
-              </div>
-            ) : (
-              <div className="w-full h-full rounded-lg border border-white/10 flex items-center justify-center">
-                <div className="text-center">
-                  <Eye className="w-12 h-12 text-white/20 mx-auto mb-4" />
-                  <p className="text-white/60 font-sans">
-                    Preview will appear here
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <FileViewer files={files} projectId={projectId} />
-        )}
+      {activeTab === "preview" ? (
+        <div className="ember-preview-stage">
+          {appUrl ? (
+            <iframe
+              key={`${projectId}-${refresh}`}
+              src={appUrl}
+              title="App preview"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
+            />
+          ) : (
+            <div className="ember-empty">
+              <Eye size={34} />
+              <h2>Your canvas is ready.</h2>
+              <p>
+                The app preview will appear when your build makes it available.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="ember-preview-files">
+          <FileViewer key={projectId} files={files} projectId={projectId} />
+        </div>
+      )}
+      <div className="ember-preview-caption">
+        {activeTab === "preview"
+          ? "Live app preview · Source available in Files"
+          : "Read your source or download the project ZIP"}
       </div>
-    </div>
+    </section>
   );
 }

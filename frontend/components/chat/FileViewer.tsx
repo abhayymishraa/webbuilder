@@ -83,8 +83,8 @@ function getLanguageFromPath(filePath: string): string {
 function getFileIcon(filename: string) {
   const ext = filename.split(".").pop()?.toLowerCase();
   const colorMap: Record<string, string> = {
-    tsx: "text-blue-400",
-    ts: "text-blue-400",
+    tsx: "text-accent-foreground",
+    ts: "text-accent-foreground",
     jsx: "text-cyan-400",
     js: "text-yellow-400",
     css: "text-pink-400",
@@ -95,7 +95,9 @@ function getFileIcon(filename: string) {
   };
 
   return (
-    <FileCode className={`w-4 h-4 ${colorMap[ext || ""] || "text-white/60"}`} />
+    <FileCode
+      className={`w-4 h-4 ${colorMap[ext || ""] || "text-muted-foreground"}`}
+    />
   );
 }
 
@@ -119,8 +121,8 @@ function FileTreeNode({
       <div
         className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors ${
           isSelected
-            ? "bg-blue-500/20 border-l-2 border-blue-400"
-            : "hover:bg-white/5"
+            ? "bg-accent border-l-2 border-blue-400"
+            : "hover:bg-secondary"
         }`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
@@ -134,12 +136,12 @@ function FileTreeNode({
         {node.isDirectory ? (
           <>
             {isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-white/40" />
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-4 h-4 text-white/40" />
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
             )}
             <Folder className="w-4 h-4 text-yellow-400/80" />
-            <span className="text-sm text-white/80 font-medium">
+            <span className="text-sm text-foreground font-medium">
               {node.name}
             </span>
           </>
@@ -147,7 +149,9 @@ function FileTreeNode({
           <>
             <div className="w-4" />
             {getFileIcon(node.name)}
-            <span className="text-sm text-white/70">{node.name}</span>
+            <span className="text-sm text-secondary-foreground">
+              {node.name}
+            </span>
           </>
         )}
       </div>
@@ -252,7 +256,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
 
   if (files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-white/40">
+      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
         <FileCode className="w-12 h-12 mb-4" />
         <p className="text-sm">No files available yet</p>
         <p className="text-xs mt-1">Files will appear once your app is built</p>
@@ -263,14 +267,14 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
   return (
     <div className="h-full flex">
       {/* File Tree Sidebar */}
-      <div className="w-64 border-r border-white/10 overflow-y-auto bg-black/30">
-        <div className="sticky top-0 bg-black/50 backdrop-blur-sm border-b border-white/10 p-3 z-10">
+      <div className="ember-file-tree border-r border-border overflow-y-auto bg-muted">
+        <div className="sticky top-0 bg-card backdrop-blur-sm border-b border-border p-3 z-10">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-white/90 font-semibold text-sm">Files</h3>
+            <h3 className="text-foreground font-semibold text-sm">Files</h3>
             <button
               onClick={handleDownloadAll}
               disabled={isDownloading}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-accent hover:bg-accent text-accent-foreground rounded transition-colors disabled:opacity-50"
               title="Download all files as ZIP"
             >
               {isDownloading ? (
@@ -281,7 +285,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
               ZIP
             </button>
           </div>
-          <p className="text-white/50 text-xs">
+          <p className="text-muted-foreground text-xs">
             {files.length} file{files.length !== 1 ? "s" : ""}
           </p>
         </div>
@@ -299,20 +303,20 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
       </div>
 
       {/* Editor Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="ember-file-editor flex-1 flex flex-col">
         {selectedFile ? (
           <>
             {/* Editor Header */}
-            <div className="flex items-center justify-between px-4 py-2 bg-black/30 border-b border-white/10">
+            <div className="ember-file-header flex items-center justify-between px-4 py-2 bg-muted border-b border-border">
               <div className="flex items-center gap-2">
                 {getFileIcon(selectedFile)}
-                <span className="text-sm text-white/80 font-mono">
+                <span className="ember-file-path text-foreground font-mono">
                   {selectedFile}
                 </span>
               </div>
               <button
                 onClick={handleDownloadFile}
-                className="flex items-center gap-2 px-3 py-1 text-xs bg-white/5 hover:bg-white/10 text-white/70 hover:text-white rounded transition-colors"
+                className="flex items-center gap-2 px-3 py-1 text-xs bg-secondary hover:bg-accent text-secondary-foreground hover:text-foreground rounded transition-colors"
               >
                 <Download className="w-3 h-3" />
                 Download
@@ -322,8 +326,8 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
             {/* Monaco Editor */}
             <div className="flex-1 relative">
               {isLoadingFile ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+                <div className="absolute inset-0 flex items-center justify-center bg-card">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <Editor
@@ -333,7 +337,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
                   theme="vs-dark"
                   options={{
                     readOnly: true,
-                    minimap: { enabled: true },
+                    minimap: { enabled: false },
                     fontSize: 13,
                     lineNumbers: "on",
                     scrollBeyondLastLine: false,
@@ -343,7 +347,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
                   }}
                   loading={
                     <div className="flex items-center justify-center h-full">
-                      <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                     </div>
                   }
                 />
@@ -351,7 +355,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-white/40">
+          <div className="flex items-center justify-center h-full text-muted-foreground">
             <div className="text-center">
               <FileCode className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-sm">Select a file to view</p>

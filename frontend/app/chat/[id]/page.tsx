@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Code2, Loader2, Plus } from "lucide-react";
+import type { UserData } from "@/api";
+import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
 import { WS_URL } from "@/lib/utils";
 import apiClient from "@/api/client";
 import {
@@ -32,14 +34,16 @@ export default function ChatIdPage() {
   const [previewWidth, setPreviewWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
-  const [userData, setUserData] = useState<any>(null);
-  const [showAllToolsDropdown, setShowAllToolsDropdown] = useState(false);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [showAllToolsDropdown, setShowAllToolsDropdown] = useState(true);
+  const [activeTab, setActiveTab] = useState("conversation");
+  const [mobilePane, setMobilePane] = useState("chat");
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const terminalRuns = useRef(new Set<string>());
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLElement>(null);
 
   // Check authentication and load initial data
   useEffect(() => {
@@ -128,8 +132,8 @@ export default function ChatIdPage() {
   }, [appUrl, isBuilding, chatId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [messages, activeTab, mobilePane]);
 
   // Handle drag resize
   useEffect(() => {
@@ -170,61 +174,100 @@ export default function ChatIdPage() {
     const connect = () => {
       if (disposed) return;
       const token = localStorage.getItem("auth_token");
-      if (!token) { router.push('/signin'); return; }
+      if (!token) {
+        router.push("/signin");
+        return;
+      }
       const ws = new WebSocket(`${WS_URL}/ws/${chatId}`);
       wsRef.current = ws;
       ws.onopen = () => {
-        if (disposed) { ws.close(); return; }
-        ws.send(JSON.stringify({ type: 'auth', token }));
+        if (disposed) {
+          ws.close();
+          return;
+        }
+        ws.send(JSON.stringify({ type: "auth", token }));
         attempt = 0;
         setWsConnected(true);
         setError(null);
       };
-      ws.onmessage = event => {
+      ws.onmessage = (event) => {
         if (disposed || wsRef.current !== ws) return;
         let incoming;
-        try { incoming = JSON.parse(event.data); } catch { return; }
-        if (incoming.e === 'resync') {
-          ws.send(JSON.stringify({ type: 'resync' }));
+        try {
+          incoming = JSON.parse(event.data);
+        } catch {
           return;
         }
-        handleWebSocketMessage(event, { setIsBuilding, setRunId,
-          setMessages, setAppUrl, setError, consolidateMessages, terminalRuns: terminalRuns.current });
+        if (incoming.e === "resync") {
+          ws.send(JSON.stringify({ type: "resync" }));
+          return;
+        }
+        handleWebSocketMessage(event, {
+          setIsBuilding,
+          setRunId,
+          setMessages,
+          setAppUrl,
+          setError,
+          consolidateMessages,
+          terminalRuns: terminalRuns.current,
+        });
       };
-      ws.onclose = event => {
+      ws.onclose = (event) => {
         if (disposed || wsRef.current !== ws) return;
         setWsConnected(false);
         if (event.code === 1008) {
           setIsBuilding(false);
-          setError('Session expired or project unavailable. Sign in again.');
+          setError("Session expired or project unavailable. Sign in again.");
           return;
         }
-        setError('Connection lost. Reconnecting to check your run; it may still be working.');
+        setError(
+          "Connection lost. Reconnecting to check your run; it may still be working.",
+        );
         retry = setTimeout(connect, Math.min(1000 * 2 ** attempt++, 10000));
       };
       ws.onerror = () => ws.close();
     };
     terminalRuns.current.clear();
-    setMessages([]); setAppUrl(null); setRunId(null); setIsBuilding(false);
+    setMessages([]);
+    setAppUrl(null);
+    setRunId(null);
+    setIsBuilding(false);
     connect();
-    return () => { disposed = true; clearTimeout(retry); wsRef.current?.close(); wsRef.current = null; };
+    return () => {
+      disposed = true;
+      clearTimeout(retry);
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
   }, [chatId, router]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const prompt = input.trim();
     if (!prompt || isBuilding) return;
-    setIsBuilding(true); setError(null);
+    setIsBuilding(true);
+    setError(null);
+    setActiveTab("conversation");
     try {
-      const { data } = await apiClient.post<{ run_id: string; tokens_remaining: number }>(`/chats/${chatId}/runs`, { prompt });
+      const { data } = await apiClient.post<{
+        run_id: string;
+        tokens_remaining: number;
+      }>(`/chats/${chatId}/runs`, { prompt });
       setRunId(data.run_id);
-      setInput('');
-      const updated = { ...userData, tokens_remaining: data.tokens_remaining };
-      localStorage.setItem('user_data', JSON.stringify(updated)); setUserData(updated);
-      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: 'resync' }));
+      setInput("");
+      if (userData) {
+        const updated = {
+          ...userData,
+          tokens_remaining: data.tokens_remaining,
+        };
+        localStorage.setItem("user_data", JSON.stringify(updated));
+        setUserData(updated);
+      }
+      if (wsRef.current?.readyState === WebSocket.OPEN)
+        wsRef.current.send(JSON.stringify({ type: "resync" }));
     } catch (err) {
       setIsBuilding(false);
-      setError(err instanceof Error ? err.message : 'Request was not accepted');
+      setError(err instanceof Error ? err.message : "Request was not accepted");
     }
   };
 
@@ -232,74 +275,156 @@ export default function ChatIdPage() {
     if (!runId) return;
     try {
       await apiClient.post(`/runs/${runId}/cancel`);
-      setIsBuilding(false); setRunId(null);
-      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: 'resync' }));
-    } catch (err) { setError(err instanceof Error ? err.message : 'Could not stop the run'); }
+      setIsBuilding(false);
+      setRunId(null);
+      if (wsRef.current?.readyState === WebSocket.OPEN)
+        wsRef.current.send(JSON.stringify({ type: "resync" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not stop the run");
+    }
   };
 
+  // Frame and composer layout adapted from Beautiful UI ChatComposer (MIT).
+  // Keep transport, durable run ownership and message consolidation in this page.
   return (
-    <div
-      className="min-h-screen w-full bg-black relative overflow-hidden"
-      ref={containerRef}
-    >
-      <div
-        className="absolute inset-0 z-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse 50% 100% at 10% 0%, rgba(226, 232, 240, 0.15), transparent 65%), #000000",
+    <div className="ember-builder">
+      <ChatIdHeader
+        userData={userData}
+        showPreview={showPreview}
+        onTogglePreview={() => {
+          setShowPreview(!showPreview);
+          setMobilePane("chat");
         }}
+        onNewChat={() => router.push("/chat")}
+        onBack={() => router.push("/projects")}
       />
-
-      <div className="relative z-10 h-screen flex flex-col">
-        <ChatIdHeader
-          userData={userData}
-          showPreview={showPreview}
-          onTogglePreview={() => setShowPreview(!showPreview)}
-          onNewChat={() => router.push("/chat")}
-          onBack={() => router.push("/chat")}
-        />
-
-        {/* Main Content Area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Chat Panel */}
-          <div
-            className="flex flex-col border-r border-white/5"
-            style={{
-              width: showPreview ? `${100 - previewWidth}%` : "100%",
-              transition: isDragging ? "none" : "width 0.3s ease-out",
-            }}
+      <div
+        className="ember-mobile-tabs"
+        role="group"
+        aria-label="Workspace view"
+      >
+        <button
+          className="ember-tab"
+          aria-pressed={mobilePane === "chat"}
+          onClick={() => setMobilePane("chat")}
+        >
+          Chat
+        </button>
+        <button
+          className="ember-tab"
+          aria-pressed={mobilePane === "preview"}
+          onClick={() => {
+            setShowPreview(true);
+            setMobilePane("preview");
+          }}
+        >
+          Workspace
+        </button>
+      </div>
+      <div className="ember-builder-shell">
+        <WorkspaceSidebar current="builder" />
+        <main
+          ref={containerRef}
+          className="ember-builder-body"
+          data-mobile-pane={mobilePane}
+          id="main-content"
+        >
+          <section
+            className="ember-conversation"
+            aria-label="Project conversation"
+            style={{ width: showPreview ? `${100 - previewWidth}%` : "100%" }}
           >
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex items-center gap-2 text-white/60">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Loading messages...</span>
-                  </div>
-                </div>
-              ) : error ? (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              ) : null}
-
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                />
-              ))}
-
-              <div ref={messagesEndRef} />
+            <div className="ember-conversation-toolbar">
+              <div
+                className="ember-row"
+                role="group"
+                aria-label="Conversation views"
+              >
+                <button
+                  className="ember-tab"
+                  aria-pressed={activeTab === "conversation"}
+                  onClick={() => setActiveTab("conversation")}
+                >
+                  Conversation
+                </button>
+                <button
+                  className="ember-tab"
+                  aria-pressed={activeTab === "activity"}
+                  onClick={() => setActiveTab("activity")}
+                >
+                  Activity
+                  {getAllToolCalls(messages).length > 0 &&
+                    ` (${getAllToolCalls(messages).length})`}
+                </button>
+              </div>
+              <button
+                className="ember-icon"
+                onClick={() => router.push("/chat")}
+                aria-label="New project"
+              >
+                <Plus size={16} />
+              </button>
             </div>
-
-            <ToolCallsDropdown
-              toolCalls={getAllToolCalls(messages)}
-              isExpanded={showAllToolsDropdown}
-              onToggle={() => setShowAllToolsDropdown(!showAllToolsDropdown)}
-            />
-
+            <div className="ember-message-scroll">
+              {isLoading && (
+                <div className="ember-row ember-helper" role="status">
+                  <Loader2 size={18} className="animate-spin" />
+                  Loading messages…
+                </div>
+              )}
+              {error && (
+                <p className="ember-error" role="alert">
+                  {error}
+                </p>
+              )}
+              {activeTab === "conversation" ? (
+                <>
+                  {!messages.length && !isLoading && (
+                    <div className="ember-chat-intro">
+                      <Code2 size={26} />
+                      <h2>Let’s make something useful.</h2>
+                      <p>
+                        Your conversation and build updates will appear here.
+                      </p>
+                    </div>
+                  )}
+                  {messages.map((message) => (
+                    <MessageBubble key={message.id} message={message} />
+                  ))}
+                  {isBuilding && (
+                    <div className="ember-row ember-helper" role="status">
+                      <Loader2 size={15} className="animate-spin" />
+                      Working on your app. You can stop this run below.
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </>
+              ) : (
+                <>
+                  <div className="ember-chat-intro">
+                    <h2>What’s happening.</h2>
+                    <p>
+                      {isBuilding
+                        ? "A run is in progress. Activity updates as it works."
+                        : "Inspect the recorded tool activity for this project."}
+                    </p>
+                  </div>
+                  {getAllToolCalls(messages).length ? (
+                    <ToolCallsDropdown
+                      toolCalls={getAllToolCalls(messages)}
+                      isExpanded={showAllToolsDropdown}
+                      onToggle={() =>
+                        setShowAllToolsDropdown(!showAllToolsDropdown)
+                      }
+                    />
+                  ) : (
+                    <p className="ember-helper">
+                      No tool activity recorded yet.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
             <ChatInput
               input={input}
               wsConnected={wsConnected}
@@ -309,27 +434,43 @@ export default function ChatIdPage() {
               onCancel={handleCancel}
               canCancel={Boolean(runId)}
             />
-          </div>
-
-          {/* Divider */}
+          </section>
           {showPreview && (
-            <div
-              className="w-1 bg-white/5 hover:bg-white/20 cursor-col-resize transition-colors"
-              onMouseDown={() => setIsDragging(true)}
-              style={{ userSelect: "none" }}
-            />
+            <>
+              <div
+                className="ember-resizer"
+                role="separator"
+                aria-label="Resize conversation and preview"
+                aria-orientation="vertical"
+                aria-valuenow={100 - previewWidth}
+                aria-valuemin={20}
+                aria-valuemax={70}
+                tabIndex={0}
+                onMouseDown={() => setIsDragging(true)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                    event.preventDefault();
+                    setPreviewWidth((width) =>
+                      Math.max(
+                        30,
+                        Math.min(
+                          80,
+                          width + (event.key === "ArrowLeft" ? 5 : -5),
+                        ),
+                      ),
+                    );
+                  }
+                }}
+              />
+              <PreviewPanel
+                appUrl={appUrl}
+                previewWidth={previewWidth}
+                files={projectFiles}
+                projectId={chatId}
+              />
+            </>
           )}
-
-          {/* Preview Area */}
-          {showPreview && (
-            <PreviewPanel
-              appUrl={appUrl}
-              previewWidth={previewWidth}
-              files={projectFiles}
-              projectId={chatId}
-            />
-          )}
-        </div>
+        </main>
       </div>
     </div>
   );
