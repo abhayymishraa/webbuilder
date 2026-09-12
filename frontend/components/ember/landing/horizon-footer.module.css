@@ -1,0 +1,109 @@
+.footer {
+  --horizon-line: color-mix(in srgb, var(--primary) 40%, var(--foreground));
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--background);
+  color: var(--foreground);
+  padding-top: 40px;
+}
+
+.grid {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--primary) 9%, transparent), transparent 65%),
+    linear-gradient(color-mix(in srgb, var(--foreground) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--foreground) 3%, transparent) 1px, transparent 1px);
+  background-size: auto, 80px 80px, 80px 80px;
+  background-position: center top;
+  mask-image: linear-gradient(transparent, black 12%, black 65%, transparent);
+}
+
+.content {
+  max-width: 680px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 24px);
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.content h2 {
+  max-width: 21ch;
+  margin: 0;
+  font-size: clamp(30px, 3.4vw, 44px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -.04em;
+  text-wrap: balance;
+}
+
+.description {
+  max-width: 460px;
+  margin: 16px 0 0;
+  color: var(--muted-foreground);
+  font-size: 16px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.footer a:focus-visible { outline: 2px solid var(--ring); outline-offset: 5px; }
+
+.horizon {
+  position: relative;
+  height: 112px;
+  margin-top: 24px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.planet {
+  position: absolute;
+  top: 40px;
+  left: -20%;
+  width: 140%;
+  height: 460px;
+  border-radius: 50%;
+  border-top: 2px solid var(--horizon-line);
+  background: var(--background);
+  box-shadow:
+    0 -8px 20px -8px var(--primary),
+    0 -24px 64px -20px color-mix(in srgb, var(--primary) 35%, transparent),
+    0 -48px 100px -32px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.bottom {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  max-width: 1220px;
+  margin-inline: auto;
+  padding: 16px clamp(16px, 4vw, 48px) max(24px, env(safe-area-inset-bottom));
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.bottom > a { min-height: 44px; font-size: 20px; }
+.bottom nav { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 24px; }
+.bottom nav a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: inherit; text-decoration: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .footer a:hover { opacity: .8; }
+  .footer a:focus-visible { opacity: 1; }
+}
+
+@media (max-width: 767px) {
+  .footer { padding-top: 32px; }
+  .horizon { height: 88px; }
+  .planet { width: 220%; left: -60%; height: 320px; }
+  .bottom { justify-content: center; text-align: center; }
+  .bottom nav { justify-content: center; }
+}
