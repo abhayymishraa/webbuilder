@@ -1,26 +1,6 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import { JetBrains_Mono } from "next/font/google";
-import { Outfit } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-geist-sans",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-jetbrains-mono",
-});
-
-const outfit = Outfit({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-outfit",
-});
+import { ThemeProvider } from "@/components/ember/ThemeProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -29,7 +9,7 @@ export const metadata: Metadata = {
   title: "WEB BUILDER AI",
   description: "Build React applications with AI",
   icons: {
-    icon: "/logo2.png",
+    icon: { url: "/brand/webbuilder-mark.svg", type: "image/svg+xml" },
   },
   openGraph: {
     title: "WEB BUILDER AI ",
@@ -37,10 +17,10 @@ export const metadata: Metadata = {
       "Build applications faster with AI-powered code generation and intelligent development assistance.",
     images: [
       {
-        url: "/logo.png",
-        width: 1200,
-        height: 630,
-        alt: "WEB BUILDER AI Logo",
+        url: "/brand/webbuilder-social.png",
+        width: 1774,
+        height: 887,
+        alt: "WebBuilder: orange building-block mark and wordmark",
       },
     ],
     type: "website",
@@ -50,7 +30,7 @@ export const metadata: Metadata = {
     title: "WEB BUILDER AI",
     description:
       "Build applications faster with AI-powered code generation and intelligent development assistance.",
-    images: ["/logo.png"],
+    images: ["/brand/webbuilder-social.png"],
   },
 };
 
@@ -60,11 +40,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${jetbrainsMono.variable} ${outfit.variable} font-sans antialiased`}
-      >
-        {children}
+    <html lang="en" data-theme="dark">
+      <body className="font-sans antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
