@@ -1,6 +1,7 @@
 """One editing conversation with shared budgets and host-controlled verification."""
 import json
 import os
+import shlex
 import time
 from collections import Counter
 from pathlib import Path
@@ -18,22 +19,37 @@ class VerificationError(Exception):
     pass
 
 
+class SandboxSetupError(VerificationError):
+    pass
+
+
+async def check_browser(workspace: WorkspaceTools, *, preflight: bool = False) -> dict:
+    script = Path(__file__).with_name('browser-check.cjs').read_text()
+    # Execute directly: overwriting the shared /tmp checker can fail with permission denied.
+    command = 'PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node -e ' + shlex.quote(script)
+    return await workspace.command(command + (' -- --preflight' if preflight else ''), timeout=45)
+
+
 async def verify(workspace: WorkspaceTools) -> dict:
     build = await workspace.command('npm run build', timeout=90)
     if not build['ok']:
         return {'ok': False, 'build': build, 'browser': {'checked': False}}
-    script = Path(__file__).with_name('browser-check.cjs').read_text()
-    await workspace.sandbox.files.write('/tmp/webbuilder-browser-check.cjs', script)
-    browser = await workspace.command(
-        'PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node /tmp/webbuilder-browser-check.cjs', timeout=45)
+    browser = await check_browser(workspace)
     return {'ok': browser['ok'], 'build': build, 'browser': browser}
 
 
 async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None):
+    workspace = WorkspaceTools(sandbox)
+    await emit('stage', message='Checking sandbox browser tools')
+    metrics['sandbox_check'] = await check_browser(workspace, preflight=True)
+    if not metrics['sandbox_check']['ok']:
+        raise SandboxSetupError(
+            'Sandbox browser tools are unavailable. Check E2B_TEMPLATE_ID and use the '
+            'webbuilder-react-verified template with Playwright and Chromium installed. '
+            'No model request was made for this run.')
     if model is None:
         from .agent import llm
         model = llm
-    workspace = WorkspaceTools(sandbox)
     tools = {t.name: t for t in workspace.definitions()}
     bound = model.bind_tools(list(tools.values()), parallel_tool_calls=False)
     max_turns = int(os.getenv('RUN_MAX_TURNS', '16'))

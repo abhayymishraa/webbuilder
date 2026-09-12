@@ -33,7 +33,10 @@ checks ownership, server capacity and one active request per chat before consumi
 a credit. The user row is locked and the credit, request and run are committed in
 one transaction. This ownership model requires exactly one API worker.
 
-`agent/runner.py` starts with scaffold facts, relevant files and a file list. It binds
+`agent/runner.py` first launches and closes Chromium using the template's Playwright
+installation. If that preflight fails, it records the diagnostic and stops before
+any model request or repair turn. This detects incompatible templates without
+asking the model to repair infrastructure. It then reads scaffold facts, relevant files and a file list. It binds
 three typed tools: `read_files`, `write_files`, and `execute_command`. Reads are cached
 until mutation; writes preserve Unicode and escapes and execute serially. Tool events
 carry a model call ID, success/error and duration. The old dependency scanner, nested
@@ -92,6 +95,9 @@ JWTs are absent from URLs. File, download, status and cancellation routes enforc
 ownership. Activity logs contain run IDs, sequence, status and resource counts;
 unexpected errors log their exception class without raw provider requests or secrets.
 Detailed bounded tool/check diagnostics are available in the owned run snapshot.
+Stage names and tool/check success flags also appear in backend logs. E2B SDK
+failures get a sandbox-specific terminal message; raw provider exception text
+is not copied into that message.
 
 Source snapshots use `projects/<chat>/files/<relative path>` with version-2 metadata.
 Legacy flat snapshots are readable. Individual files and metadata are replaced
@@ -108,6 +114,15 @@ React rendering, absence of Vite overlays and uncaught page errors. Failed check
 feed specific diagnostics into at most two repairs. It does not prove every requested
 feature, accessibility, layout quality or protection against adversarial generated code.
 Generated package scripts execute inside E2B and are not a security attestation.
+The checker is passed directly to `node -e` with shell quoting. It does not overwrite
+a shared temporary file: repeated writes to the previous `/tmp` checker path produced
+an E2B permission error during the 13 September local failure investigation.
+
+13 September sandbox fix evidence: 15 focused orchestration tests passed. An
+E2B-only check using the corrected template passed browser preflight and two
+consecutive production-build plus desktop/mobile browser checks. Test sandboxes
+were killed afterward. No OpenAI request or full application generation was run
+for this check; these results establish the sandbox verification path only.
 
 Verified locally on 12 September:
 

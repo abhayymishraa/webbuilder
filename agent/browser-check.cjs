@@ -3,6 +3,10 @@ const { chromium } = require('/opt/webbuilder-checks/node_modules/playwright');
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   const errors = [];
   try {
+    if (process.argv.includes('--preflight')) {
+      console.log(JSON.stringify({ ok: true, checks: ['browser tooling'] }));
+      return;
+    }
     for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
       const page = await browser.newPage({ viewport });
       page.on('pageerror', error => errors.push(error.message));

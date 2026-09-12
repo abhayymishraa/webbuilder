@@ -2,10 +2,11 @@ import asyncio
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from langchain_core.messages import AIMessage
-from agent.runner import run_editor, RunLimitError, VerificationError, verify
+from agent.runner import run_editor, RunLimitError, VerificationError, SandboxSetupError, check_browser, verify
+from e2b import SandboxException
 from agent.tools import WorkspaceTools, project_path
 from agent.service import Service, LiveRun
 
@@ -35,6 +36,18 @@ def reply(calls=None):
 
 
 class ToolTests(unittest.IsolatedAsyncioTestCase):
+    async def test_browser_checks_do_not_overwrite_shared_temporary_file(self):
+        sandbox = FakeSandbox()
+        sandbox.files.write.side_effect = PermissionError('shared temporary file')
+        workspace = WorkspaceTools(sandbox)
+        preflight = await check_browser(workspace, preflight=True)
+        first = await verify(workspace)
+        second = await verify(workspace)
+        self.assertTrue(preflight['ok'])
+        self.assertTrue(first['ok'])
+        self.assertTrue(second['ok'])
+        sandbox.files.write.assert_not_awaited()
+
     async def test_typed_unicode_batch_and_cache_invalidation(self):
         sandbox = FakeSandbox(); workspace = WorkspaceTools(sandbox)
         tools = {t.name: t for t in workspace.definitions()}
@@ -69,6 +82,35 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
 
 
 class RunnerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_missing_browser_tools_stop_before_model_request(self):
+        sandbox = FakeSandbox()
+        sandbox.commands.run.return_value = SimpleNamespace(
+            exit_code=1, stdout='', stderr='Cannot find module playwright')
+        model = SimpleNamespace(bind_tools=Mock())
+        metrics = {}
+        with self.assertRaisesRegex(SandboxSetupError, 'No model request'):
+            await run_editor(sandbox, 'portfolio', AsyncMock(), AsyncMock(), metrics, model)
+        model.bind_tools.assert_not_called()
+        self.assertFalse(metrics['sandbox_check']['ok'])
+        self.assertNotIn('repairs', metrics)
+        self.assertTrue(sandbox.commands.run.call_args.args[0].endswith(' --preflight'))
+
+    async def test_sandbox_failure_has_safe_actionable_terminal_reason(self):
+        service = Service()
+        live = LiveRun('run', 'chat', 'portfolio')
+        sandbox = FakeSandbox()
+        service.get_e2b_sandbox = AsyncMock(return_value=sandbox)
+        service.finish = AsyncMock()
+        service.save_files = AsyncMock()
+        with patch('agent.service.run_editor', new=AsyncMock(
+                side_effect=SandboxException('private provider request'))):
+            await service.execute(live)
+        reason = service.finish.call_args.args[2]
+        self.assertIn('sandbox', reason)
+        self.assertNotIn('private provider request', reason)
+        self.assertEqual(live.metrics['error_type'], 'SandboxException')
+        sandbox.kill.assert_awaited_once()
+
     async def test_repair_is_bounded_and_checks_are_real_gate(self):
         with patch('agent.runner.verify', new=AsyncMock(return_value={'ok': False, 'build': {'stderr': 'bad'}})) as check:
             with self.assertRaises(VerificationError):

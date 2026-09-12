@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from e2b import AsyncSandbox
+from e2b import AsyncSandbox, SandboxException
 from fastapi import HTTPException
 from sqlalchemy import select, update
 
@@ -111,7 +111,13 @@ class Service:
             raise RunLimitError('Activity budget reached')
         live.events.append(event)
         self.publish(live.chat_id, event)
-        logger.info(json.dumps({k: event[k] for k in ('e', 'run_id', 'sequence')}))
+        record = {k: event[k] for k in ('e', 'run_id', 'sequence')}
+        if kind == 'stage':
+            live.metrics['stage'] = payload.get('message')
+            record['stage'] = payload.get('message')
+        elif kind in ('verification', 'tool_completed'):
+            record['ok'] = payload.get('ok')
+        logger.info(json.dumps(record))
 
     async def checkpoint(self, live):
         async with AsyncSessionLocal.begin() as db:
@@ -179,7 +185,7 @@ class Service:
             db.add(Message(id=live.id, chat_id=live.chat_id, role='assistant', content=reason, event_type='run_summary'))
         self.publish(live.chat_id, event)
         logger.info(json.dumps({'run_id': live.id, 'status': status, **{
-            key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'sandbox_cleanup')}}))
+            key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'stage', 'sandbox_cleanup')}}))
 
     async def execute(self, live):
         started = time.monotonic()
@@ -200,6 +206,12 @@ class Service:
             reason = 'Server stopped; submit a new request to continue.' if self.stopping else 'Stopped at your request. Uncheckpointed changes were discarded.'
         except (RunLimitError, VerificationError) as exc:
             reason = str(exc)
+            live.metrics['error_type'] = type(exc).__name__
+        except SandboxException as exc:
+            reason = 'The build sandbox could not complete an operation. Retry the request; if it keeps failing, check the E2B template and service availability.'
+            live.metrics['error_type'] = type(exc).__name__
+            logger.error('Sandbox operation failed run_id=%s error_type=%s stage=%s',
+                         live.id, type(exc).__name__, live.metrics.get('stage'))
         except Exception as exc:
             # Exception text can include provider requests or secrets. Log safe identity only.
             live.metrics['error_type'] = type(exc).__name__
