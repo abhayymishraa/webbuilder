@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
-from e2b_code_interpreter import AsyncSandbox
+from e2b import AsyncSandbox
 import asyncio
 import json
 import os
@@ -57,7 +57,7 @@ async def get_health():
 @app.get("/health/ready")
 async def get_readiness(db: AsyncSession = Depends(get_db)):
     try:
-        await asyncio.wait_for(db.execute(text("SELECT 1")), timeout=3)
+        await asyncio.wait_for(db.execute(text("SELECT 1")), timeout=12)
     except Exception:
         raise HTTPException(status_code=503, detail="Database unavailable") from None
     return {"status": "ready"}

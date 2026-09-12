@@ -2,7 +2,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from fastapi import WebSocket
 from .graph_state import GraphState
 from .tools import create_tools_with_context
-from .agent import llm_gemini_pro, llm_gemini_flash
+from .agent import llm
 from .formatters import create_formatted_message, format_plan_as_markdown
 import json
 import asyncio
@@ -232,7 +232,7 @@ async def planner_node(state: GraphState) -> GraphState:
             event_type="thinking"
         )
 
-        response = await llm_gemini_flash.ainvoke(messages)
+        response = await llm.ainvoke(messages)
 
         # Format the plan preview for better display
         plan_preview = response.content[:500] if len(response.content) > 500 else response.content
@@ -419,7 +419,7 @@ async def builder_node(state: GraphState) -> GraphState:
             HumanMessage(content=builder_prompt),
         ]
 
-        agent_executor = create_react_agent(llm_gemini_pro, tools=base_tools)
+        agent_executor = create_react_agent(llm, tools=base_tools)
         config = {"recursion_limit": 50}
 
         try:
@@ -622,7 +622,7 @@ async def code_validator_node(state: GraphState) -> GraphState:
             HumanMessage(content=validator_prompt),
         ]
 
-        validator_agent = create_react_agent(llm_gemini_flash, tools=base_tools)
+        validator_agent = create_react_agent(llm, tools=base_tools)
         config = {"recursion_limit": 50}
 
         try:

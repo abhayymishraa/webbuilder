@@ -17,7 +17,7 @@ chown 10001:10001 "$root/projects"
 exec 9>"$root/deploy.lock"
 flock -w 300 9
 [[ -s "$root/runtime.env" ]] || { echo 'Missing runtime.env'; exit 1; }
-for key in DATABASE_URL GOOGLE_API_KEY E2B_API_KEY; do
+for key in DATABASE_URL OPENAI_API_KEY E2B_API_KEY E2B_TEMPLATE_ID; do
     grep -qE "^${key}=.+$" "$root/runtime.env" || { echo "Missing $key"; exit 1; }
 done
 grep -qE '^SECRET_KEY=.{32,}$' "$root/runtime.env" || { echo 'SECRET_KEY must contain at least 32 characters'; exit 1; }
@@ -54,6 +54,8 @@ rm -f "$artifact_dir/backend-image.tar.gz"
 docker image inspect "$image" >/dev/null
 compose "$release" config --quiet
 compose "$release" pull proxy
+# Apply the additive initial schema before replacing the running API.
+docker run --rm --env-file "$root/runtime.env" "$image" python -m db.migrate
 trap rollback ERR
 trap 'false' INT TERM
 compose "$release" up -d --no-deps api
@@ -71,9 +73,9 @@ done
 compose "$release" up -d --no-deps proxy
 # Verify routing through the proxy without depending on public DNS propagation.
 curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 2 \
-    --max-time 10 http://127.0.0.1:8000/health/ready >/dev/null
+    --max-time 15 http://127.0.0.1:8000/health/ready >/dev/null
 curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 6 \
-    --resolve "$domain:443:127.0.0.1" --max-time 10 "https://$domain/health/ready" >/dev/null
+    --resolve "$domain:443:127.0.0.1" --max-time 15 "https://$domain/health/ready" >/dev/null
 ln -sfn "$release" "$root/current.next"
 mv -Tf "$root/current.next" "$root/current"
 trap - ERR INT TERM

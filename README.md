@@ -1,245 +1,75 @@
 # WebBuilder
 
-An AI-powered web application builder that generates React applications through natural language descriptions using multi-agent orchestration with LangGraph.
+Generate and edit React applications with an AI agent. The Next.js frontend uses a
+FastAPI backend for authentication, chat history, and WebSocket progress. LangGraph
+runs the planner, builder, and validator through OpenAI. Generated code runs in E2B.
 
-## Architecture
+## Production
 
-### Backend
-- FastAPI server with WebSocket support for real-time communication
-- Multi-agent system using LangGraph for workflow orchestration
-- E2B sandboxes for isolated code execution and validation
-- PostgreSQL database for user authentication and chat persistence
-- JWT-based authentication with token-based rate limiting
-- Google Gemini models for planning, building, and code validation
+- Frontend: https://webbuilder.abhayymishraa.us (Vercel)
+- Backend: https://webbuilder-api.abhayymishraa.us (Oracle)
+- Database: PostgreSQL on Neon
+- Default model: `gpt-5.6-luna`, configurable with `OPENAI_MODEL`
 
-### Frontend
-- Next.js application with TypeScript
-- Real-time WebSocket communication for build progress
-- File viewer and preview panel for generated applications
-- Chat interface for iterative development
+See [deployment configuration and rollback](deploy/README.md). Pushes to `main`
+deploy the frontend through Vercel and backend changes through GitHub Actions.
+The VM runs only the backend container, persistent project files, and Caddy.
 
-### Agent System
-- Planner Node: Creates implementation plan from user prompt
-- Builder Node: Generates React code and components
-- Import Checker: Validates import statements
-- Code Validator: Checks for syntax errors
-- Application Checker: Verifies runtime execution
-- Retry mechanism with error categorization and limits
+## Local development
 
-## Project Structure
+Requires Python 3.12+, uv, Node.js 22+, and PostgreSQL. Keep credentials in an
+ignored `.env` file or a private file outside this repository:
 
-```
-lovable-clone/
-├── agent/              # Multi-agent system
-│   ├── agent.py        # LLM configuration
-│   ├── graph_builder.py # LangGraph workflow
-│   ├── graph_nodes.py   # Agent node implementations
-│   ├── graph_state.py   # State management
-│   ├── prompts.py       # System prompts
-│   ├── service.py       # Sandbox lifecycle management
-│   └── tools.py         # File and command tools
-├── auth/               # Authentication system
-├── db/                 # Database models and configuration
-├── alembic/            # Database migrations
-├── frontend/           # Next.js application
-│   ├── app/            # Next.js pages
-│   ├── components/     # React components
-│   ├── api/            # API client
-│   └── lib/            # Utilities and types
-├── main.py             # FastAPI application entry point
-├── pyproject.toml      # Python dependencies (uv)
-└── requirements.txt    # Python dependencies (pip)
-```
-
-## Prerequisites
-
-- Python 3.12 or higher
-- Node.js 18 or higher
-- PostgreSQL database
-- E2B account and API key
-- Google Gemini API key
-
-## Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Database
-DATABASE_URL=postgresql://username:password@localhost:5432/webbuilder
-DIRECT_URL=postgresql://username:password@localhost:5432/webbuilder
-
-# Authentication
-SECRET_KEY=your-secret-key-here
-
-# E2B Sandbox
-E2B_API_KEY=your-e2b-api-key
-
-# Google Gemini
-GOOGLE_API_KEY=your-google-api-key
-```
-
-## Setup
-
-### Backend (Python/FastAPI)
-
-1. Install dependencies using uv (recommended) or pip:
 ```bash
-# Using uv (faster, recommended)
+cp deploy/runtime.env.example .env
+# Fill in DATABASE_URL, OPENAI_API_KEY, E2B_API_KEY, E2B_TEMPLATE_ID,
+# SECRET_KEY, and ALLOWED_ORIGINS before running the following commands.
 uv sync
-
-# Or using pip
-pip install -r requirements.txt
+uv run --env-file .env python -m db.migrate
+uv run --env-file .env uvicorn main:app --reload
 ```
 
-2. Run database migrations:
-```bash
-alembic upgrade head
-```
+`SECRET_KEY` must be a random secret with at least 32 characters in production.
+The database driver accepts Neon's standard PostgreSQL URL, including
+`sslmode=require&channel_binding=require`, and verifies the TLS certificate.
+`db.migrate` creates missing initial tables without dropping data; changes to
+existing columns require an explicit migration before deploying changed models.
 
-3. Start the backend server:
-```bash
-uv run uvicorn main:app --reload
+Configure `frontend/.env.local`:
 
-# Or without uv
-uvicorn main:app --reload
-```
-
-The API server will be available at `http://localhost:8000`
-
-### Frontend (Next.js)
-
-1. Navigate to frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Create `.env.local` file in frontend directory:
-```env
+```text
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WS_URL=ws://localhost:8000
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
 ```
 
-4. Start the development server:
+Then start the frontend:
+
 ```bash
+cd frontend
+npm ci
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:3000`
+Set backend `ALLOWED_ORIGINS=http://localhost:3000` for local development.
 
-## Database Setup
+## E2B template
 
-1. Install PostgreSQL if not already installed
+The sandbox contains Node, React, React Router, React Icons, Vite, Tailwind CSS,
+and the directory tree tool. Its server starts on port 5173. No OpenAI or database
+credentials are copied into the sandbox template.
 
-2. Create database:
-```sql
-CREATE DATABASE webbuilder;
-```
+With the E2B CLI authenticated, build from its separate directory:
 
-3. The application will automatically create tables on first migration run
-
-## E2B Sandbox Configuration
-
-1. Sign up at https://e2b.dev
-2. Create a new template or use existing template ID: `9jwfe1bxhxidt50x0a6o`
-3. Add E2B_API_KEY to your `.env` file
-4. Template is configured in `e2b.toml` with Node.js and React support
-
-## API Endpoints
-
-### Authentication
-- `POST /auth/signup` - Create new user account
-- `POST /auth/login` - Login and get JWT token
-- `GET /auth/me` - Get current user profile
-
-### Chat/Projects
-- `POST /chat` - Create new project and start agent
-- `GET /chats/{id}/messages` - Get chat message history
-- `GET /projects` - List all user projects
-- `WS /ws/{id}?token={jwt}` - WebSocket for real-time updates
-
-### Files
-- `GET /projects/{id}/files` - List project files
-- `GET /projects/{id}/files/{path}` - Get file content
-- `GET /projects/{id}/download` - Download project as ZIP
-
-## Token System
-
-- Each user gets 2 tokens per 24 hours
-- Tokens reset automatically after 24 hours
-- Each project creation or chat message consumes 1 token
-- Token usage is tracked per user in the database
-
-## Development
-
-### Running Backend
 ```bash
-# Run with auto-reload
-uv run uvicorn main:app --reload
-
-# Run database migrations
-alembic revision --autogenerate -m "description"
-alembic upgrade head
-
-# Format code
-black .
+e2b template create webbuilder-react-openai --path sandbox --dockerfile Dockerfile \
+  --cmd 'cd /home/user/react-app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort' \
+  --ready-cmd 'curl -fsS http://127.0.0.1:5173/ >/dev/null' \
+  --cpu-count 1 --memory-mb 1024
 ```
 
-### Running Frontend
-```bash
-cd frontend
-npm run dev      # Development server
-npm run build    # Production build
-npm run lint     # Lint code
-```
+Set `E2B_TEMPLATE_ID` to the resulting template ID. Existing templates remain
+available; building this template does not delete them.
 
-## Deployment Considerations
-
-### Backend
-- Set proper CORS origins in `main.py`
-- Use production-grade database connection pooling
-- Configure proper WebSocket timeout values
-- Set up nginx with WebSocket support:
-  - `proxy_http_version 1.1`
-  - Upgrade and Connection headers
-  - Increased `proxy_read_timeout` for long operations
-
-### Frontend
-- Update API URLs in environment variables
-- Build for production: `npm run build`
-- Serve with proper CDN for static assets
-
-### Database
-- Use connection pooling
-- Regular backups
-- Monitor for idle connections
-
-## Troubleshooting
-
-### Backend won't start
-- Verify all environment variables are set
-- Check database connection
-- Ensure port 8000 is available: `lsof -i:8000`
-
-### Frontend can't connect
-- Verify backend is running
-- Check CORS settings in `main.py`
-- Verify API URL in frontend `.env.local`
-
-### WebSocket disconnects
-- Check nginx configuration for WebSocket support
-- Increase timeout values
-- Verify JWT token is being sent correctly
-
-### Database connection errors
-- Verify PostgreSQL is running
-- Check DATABASE_URL format
-- Ensure database exists
-
-## License
-
-MIT
+OpenAI and E2B usage have their own billing or free-credit limits. Free frontend
+and VM hosting do not make AI generation free.

@@ -71,4 +71,4 @@ jobs:
           ssh "${ssh_args[@]}" "$destination" "sudo bash '$directory/deploy/deploy.sh' '$GITHUB_SHA' '$BACKEND_DOMAIN'"
           ssh "${ssh_args[@]}" "$destination" "rm -rf '$directory'"
           curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 6 \
-            --max-time 10 "https://$BACKEND_DOMAIN/health/ready"
+            --max-time 15 "https://$BACKEND_DOMAIN/health/ready"

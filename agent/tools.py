@@ -1,4 +1,4 @@
-from e2b_code_interpreter import AsyncSandbox
+from e2b import AsyncSandbox
 from fastapi import WebSocket
 from langchain_core.tools import tool
 import os

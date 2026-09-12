@@ -1,16 +1,27 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.engine import make_url
 from typing import AsyncGenerator
 import os
+import ssl
 
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+asyncpg://user:password@localhost/webbuilder"
+    "DATABASE_URL", "postgresql://user:password@localhost/webbuilder"
 )
 
-# Creates a connection pool that supports async I/O.
-# Production-ready settings for Supabase connection pooler
+database_url = make_url(DATABASE_URL).set(drivername="postgresql+psycopg")
+connect_args = {
+    "prepare_threshold": None,
+    "connect_timeout": 10,
+    "application_name": "webbuilder",
+}
+if database_url.query.get("sslmode") in {"require", "verify-ca", "verify-full"}:
+    # Preserve libpq's channel_binding setting and verify the server certificate.
+    connect_args["sslmode"] = "verify-full"
+    connect_args["sslrootcert"] = ssl.get_default_verify_paths().cafile
+
 engine = create_async_engine(
-    DATABASE_URL,
+    database_url,
     echo=False,
     future=True,
     pool_pre_ping=True,  # Test connections before using them
@@ -18,13 +29,7 @@ engine = create_async_engine(
     max_overflow=2,
     pool_timeout=5,
     pool_recycle=3600,  # Recycle connections after 1 hour
-    connect_args={
-        "statement_cache_size": 0,  # Required for pgbouncer
-        "server_settings": {
-            "application_name": "webbuilder",
-            "jit": "off"
-        }
-    }
+    connect_args=connect_args,
 )
 
 

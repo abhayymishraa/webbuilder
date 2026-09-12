@@ -13,8 +13,8 @@ Backend: `https://webbuilder-api.abhayymishraa.us`.
 
 1. On the Ubuntu VM, install Docker and Docker Compose 2.30 or newer. Allow TCP 80/443 to the VM.
 2. Save backend credentials in `/opt/webbuilder/runtime.env` with mode `600`, using
-   `runtime.env.example` as the key list. Reuse the existing PostgreSQL database and
-   schema; this deployment never creates or modifies its schema. Generate a strong
+   `runtime.env.example` as the key list. Use the intended PostgreSQL database. The deployment creates missing initial
+   tables through `python -m db.migrate`; it never drops existing data. Generate a strong
    `SECRET_KEY`; never use the application's development fallback in production.
 3. Create a DNS A record for the backend domain pointing at the VM. Caddy obtains and
    renews its certificate. Keep the API's port 8000 private.
@@ -44,6 +44,9 @@ load the new image, check database readiness, and verify HTTPS before marking th
 release current. A failed rollout restores the previous image and Compose files.
 The VM retains the current and previous image; logs have bounded rotation.
 The API runs as a non-root user with a read-only root filesystem and capped memory.
+Docker's periodic check uses the process-only `/` endpoint so it does not keep
+Neon awake. Database readiness is checked during deployment and on demand, allowing
+an idle Neon database to suspend and conserve its free compute allowance.
 
 One API worker is intentional: WebSocket connections, runs, and sandboxes are held
 in memory. Restarting the API interrupts active generations; users should retry
@@ -67,6 +70,6 @@ sudo ln -sfn "$previous" /opt/webbuilder/current
 ```
 
 Hosting is intended to stay within free allowances. Oracle may reclaim idle free
-instances, and Vercel Hobby has usage limits. Gemini, E2B, and the existing database
+instances, and Vercel Hobby has usage limits. OpenAI, E2B, and the existing database
 have independent quotas or billing; free hosting does not make generation free.
 No AI generation is needed for deployment health and login checks.

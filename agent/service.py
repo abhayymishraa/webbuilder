@@ -1,6 +1,6 @@
 from .graph_builder import run_workflow
 from typing import Dict
-from e2b_code_interpreter import AsyncSandbox
+from e2b import AsyncSandbox
 from dotenv import load_dotenv
 from fastapi import WebSocket
 from db.base import get_db
@@ -15,7 +15,7 @@ from utils.store import load_json_store, save_json_store
 
 load_dotenv()
 
-TEMPLATE_ID = "9jwfe1bxhxidt50x0a6o"
+TEMPLATE_ID = os.environ["E2B_TEMPLATE_ID"]
 
 
 class Service:
