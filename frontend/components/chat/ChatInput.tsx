@@ -8,6 +8,8 @@ interface ChatInputProps {
   isBuilding: boolean;
   onInputChange: (value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+  canCancel: boolean;
 }
 
 export function ChatInput({
@@ -16,6 +18,8 @@ export function ChatInput({
   isBuilding,
   onInputChange,
   onSubmit,
+  onCancel,
+  canCancel,
 }: ChatInputProps) {
   return (
     <div className="border-t border-white/5 bg-black/40 backdrop-blur-md p-4">
@@ -31,6 +35,7 @@ export function ChatInput({
               disabled={!wsConnected || isBuilding}
             />
             <div className="flex items-center gap-1">
+              {isBuilding && <Button type="button" onClick={onCancel} disabled={!canCancel} variant="outline">Stop</Button>}
               <Button
                 type="submit"
                 disabled={!wsConnected || !input.trim() || isBuilding}

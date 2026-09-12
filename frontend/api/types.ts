@@ -31,11 +31,10 @@ export interface RegisterRequest {
 }
 
 export interface ChatResponse {
-  status: string;
-  message: string;
+  status: 'running';
+  run_id: string;
   chat_id: string;
   tokens_remaining: number;
-  reset_in_hours: number;
 }
 
 export interface Project {

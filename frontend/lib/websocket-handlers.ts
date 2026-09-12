@@ -1,266 +1,77 @@
-import type { WebSocketMessage, WebSocketHandlers } from "./chat-types";
+import type { Message, RunEvent, RunSnapshot, WebSocketHandlers } from './chat-types';
 
-/**
- * Handles incoming WebSocket messages for the chat
- * Processes different event types and updates UI state accordingly
- */
-export function handleWebSocketMessage(
-  event: MessageEvent,
-  handlers: WebSocketHandlers,
-) {
+export function applyRunEvent(messages: Message[], event: RunEvent): Message[] {
+  if (!event.run_id) return messages;
+  const id = `run:${event.run_id}`;
+  const existing = messages.find(m => m.id === id);
+  const message: Message = existing ? { ...existing, tool_calls: [...(existing.tool_calls || [])] } : {
+    id, role: 'assistant', content: '', created_at: event.created_at, event_type: 'run', tool_calls: [],
+  };
+  if (event.e === 'tool_started' || event.e === 'tool_completed') {
+    if (!event.call_id) return messages;
+    const calls = message.tool_calls!;
+    const index = calls.findIndex(call => call.id === event.call_id);
+    // A delayed start must never resurrect a completed call.
+    if (event.e === 'tool_started' && index >= 0) return messages;
+    const call = { id: event.call_id, name: event.name || 'Tool',
+      status: event.e === 'tool_started' ? 'running' as const : event.ok ? 'success' as const : 'error' as const,
+      output: event.output, duration_ms: event.duration_ms };
+    if (index < 0) calls.push(call); else calls[index] = call;
+  } else if (event.message) {
+    message.content = event.message;
+  }
+  if (event.e === 'run_finished') {
+    message.tool_calls = message.tool_calls?.map(call => call.status === 'running'
+      ? { ...call, status: 'error', output: 'Run ended before this operation completed.' } : call);
+  }
+  return existing ? messages.map(m => m.id === id ? message : m) : [...messages, message];
+}
+
+export function restoreRuns(messages: Message[], runs: RunSnapshot[]): Message[] {
+  let result = messages;
+  for (const run of runs) {
+    for (const event of run.events) result = applyRunEvent(result, event);
+    if (run.status !== 'running') result = applyRunEvent(result, {
+      e: 'run_finished', run_id: run.id, event_id: `${run.id}:terminal`, created_at: run.created_at || run.events[0]?.created_at || new Date(0).toISOString(),
+      status: run.status, message: run.reason || `Run ${run.status}`,
+    });
+  }
+  return result.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+}
+
+export function handleWebSocketMessage(event: MessageEvent, handlers: WebSocketHandlers) {
   try {
-    const data: WebSocketMessage = JSON.parse(event.data);
-    console.log("Received WebSocket message:", data);
-
-    // Handle tool start events - show temporary tool card
-    if (data.e === "tool_started") {
-      const toolName = (data.tool_name as string) || "Unknown Tool";
-      handlers.setCurrentTool({
-        name: toolName,
-        status: "running",
-      });
-
-      // Add tool to the last assistant message's tool_calls
-      handlers.setMessages((prev) => {
-        if (prev.length === 0) return prev;
-
-        const lastMsg = prev[prev.length - 1];
-        if (lastMsg.role === "assistant") {
-          const newToolCall = {
-            name: toolName,
-            status: "running" as const,
-          };
-
-          return [
-            ...prev.slice(0, -1),
-            {
-              ...lastMsg,
-              tool_calls: [...(lastMsg.tool_calls || []), newToolCall],
-            },
-          ];
-        }
-
-        // If last message isn't assistant, create a new one
-        return [
-          ...prev,
-          {
-            id: Date.now().toString() + "-assistant",
-            role: "assistant" as const,
-            content: "",
-            created_at: new Date().toISOString(),
-            event_type: "tool_started",
-            tool_calls: [
-              {
-                name: toolName,
-                status: "running" as const,
-              },
-            ],
-          },
-        ];
-      });
-
+    const data = JSON.parse(event.data);
+    if (data.type === 'history') {
+      const runs: RunSnapshot[] = data.runs || [];
+      for (const run of runs) if (run.status !== 'running') handlers.terminalRuns.add(run.id);
+      // New runs render their own terminal summary; preserve legacy chat history.
+      const history = handlers.consolidateMessages((data.messages || []).filter((m: Message) => m.event_type !== 'run_summary' || !runs.some(run => run.id === m.id)));
+      handlers.setMessages(restoreRuns(history, runs));
+      const active = runs.find(run => run.status === 'running');
+      handlers.setRunId(active?.id || null);
+      handlers.setIsBuilding(Boolean(active));
+      handlers.setAppUrl(data.app_url || null);
+      const last = runs.at(-1);
+      handlers.setError(last && last.status !== 'running' && last.status !== 'succeeded' ? last.reason || `Run ${last.status}` : null);
       return;
     }
-
-    // Handle tool end events - show output briefly then hide
-    if (data.e === "tool_completed") {
-      const toolName =
-        (data.tool_name as string) || handlers.currentTool?.name || "Tool";
-      const toolOutput = data.tool_output || "Completed";
-
-      handlers.setCurrentTool({
-        name: toolName,
-        status: "completed",
-        output:
-          typeof toolOutput === "string"
-            ? toolOutput.substring(0, 200)
-            : JSON.stringify(toolOutput).substring(0, 200),
-      });
-
-      // Update the tool status in messages
-      handlers.setMessages((prev) => {
-        return prev.map((msg) => {
-          if (msg.role === "assistant" && msg.tool_calls) {
-            return {
-              ...msg,
-              tool_calls: msg.tool_calls.map((tool) =>
-                tool.name === toolName && tool.status === "running"
-                  ? {
-                      ...tool,
-                      status: "success" as const,
-                      output:
-                        typeof toolOutput === "string"
-                          ? toolOutput
-                          : JSON.stringify(toolOutput),
-                    }
-                  : tool,
-              ),
-            };
-          }
-          return msg;
-        });
-      });
-
-      // Hide after 2 seconds
-      setTimeout(() => {
-        handlers.setCurrentTool(null);
-      }, 2000);
-
-      return;
-    }
-
-    // Check if building has started
-    if (data.e === "builder_started" || data.e === "workflow_started") {
+    if (!data.run_id) return;
+    if (handlers.terminalRuns.has(data.run_id)) return;
+    handlers.setMessages(previous => applyRunEvent(previous, data));
+    if (data.e === 'run_started' || data.e === 'stage' || data.e === 'tool_started') {
+      handlers.setRunId(data.run_id);
       handlers.setIsBuilding(true);
     }
-
-    // Check if app URL is received - start health check
-    if (data.url) {
+    if (data.e === 'run_finished') {
+      handlers.terminalRuns.add(data.run_id);
+      handlers.setRunId(null);
       handlers.setIsBuilding(false);
-      handlers.pollUrlUntilReady(data.url);
+      handlers.setError(data.status === 'succeeded' ? null : data.message);
+      if (data.status === 'succeeded' && data.url) handlers.setAppUrl(data.url);
+      else handlers.setAppUrl(null);
     }
-
-    // Check if workflow completed
-    if (data.e === "workflow_completed") {
-      handlers.setIsBuilding(false);
-      handlers.setCurrentTool(null);
-
-      // Refresh user data to update token count
-      const updatedUser = localStorage.getItem("user_data");
-      if (updatedUser) {
-        handlers.setUserData(JSON.parse(updatedUser));
-      }
-    }
-
-    // Handle initial message history
-    if (data.type === "history" && data.messages) {
-      console.log(
-        "Received message history:",
-        data.messages.length,
-        "messages",
-      );
-      console.log("Full history data:", data);
-      console.log("App URL in data:", data.app_url);
-      const consolidatedMessages = handlers.consolidateMessages(data.messages);
-      console.log(
-        "Consolidated to:",
-        consolidatedMessages.length,
-        "messages",
-      );
-      handlers.setMessages(consolidatedMessages);
-
-      // Set app URL if it exists - skip health check for restored URLs
-      if (data.app_url) {
-        console.log(
-          "Setting app URL directly (no health check for restored URL):",
-          data.app_url,
-        );
-        handlers.setAppUrl(data.app_url);
-      } else {
-        console.log("No app_url found in history data");
-      }
-
-      return;
-    }
-
-    // Handle errors
-    if (data.type === "error" || data.e === "error") {
-      handlers.setError((data.message as string) || "An error occurred");
-    }
-
-    // Handle token status updates
-    if (data.type === "token_update" || data.tokens_remaining !== undefined) {
-      console.log("Token update received:", data.tokens_remaining);
-      const user = JSON.parse(localStorage.getItem("user_data") || "{}");
-      user.tokens_remaining = data.tokens_remaining;
-      if (data.reset_in_hours !== undefined) {
-        user.reset_in_hours = data.reset_in_hours;
-      }
-      localStorage.setItem("user_data", JSON.stringify(user));
-      handlers.setUserData(user);
-      console.log("User data updated:", user);
-    }
-
-    // Handle thinking content
-    if (data.e === "thinking") {
-      handlers.setMessages((prev) => {
-        const lastMsg = prev[prev.length - 1];
-        
-        // Handle message that could be string or array
-        let newContent = data.message || data.content;
-        if (Array.isArray(newContent)) {
-          // If message is an array, extract text from it (e.g., LLM content blocks)
-          newContent = newContent
-            .map((item: any) => {
-              if (typeof item === "string") return item;
-              if (item.text) return item.text;
-              return JSON.stringify(item);
-            })
-            .join("\n");
-        }
-        newContent = String(newContent); // Ensure it's a string
-        const formatted = data.formatted as string | undefined;
-
-        // Check if the new content looks like JSON (starts with { or contains ```json)
-        const looksLikeJson =
-          newContent.trim().startsWith("{") ||
-          newContent.includes("```json") ||
-          newContent.includes('"plan"') ||
-          newContent.includes('"application_overview"');
-
-        if (lastMsg?.role === "assistant") {
-          // If new content is JSON-like, separate it with double newline for better parsing
-          const separator = looksLikeJson ? "\n\n" : "\n";
-
-          // Append thinking to existing assistant message
-          return [
-            ...prev.slice(0, -1),
-            {
-              ...lastMsg,
-              content: lastMsg.content + separator + newContent,
-              formatted: formatted || lastMsg.formatted,
-            },
-          ];
-        }
-
-        // Create new assistant message
-        return [
-          ...prev,
-          {
-            id: Date.now().toString() + "-assistant",
-            role: "assistant" as const,
-            content: newContent,
-            formatted: formatted,
-            created_at: new Date().toISOString(),
-            event_type: data.e,
-          },
-        ];
-      });
-      return;
-    }
-
-    // Handle planner complete (with formatted plan)
-    if (data.e === "planner_complete") {
-      const planContent = data.content || data.plan;
-      const formatted = data.formatted as string | undefined;
-
-      handlers.setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString() + "-plan",
-          role: "assistant" as const,
-          content:
-            typeof planContent === "object"
-              ? JSON.stringify(planContent, null, 2)
-              : String(planContent),
-          formatted: formatted,
-          created_at: new Date().toISOString(),
-          event_type: "planner_complete",
-        },
-      ]);
-      return;
-    }
-  } catch (err) {
-    console.error("Failed to parse WebSocket message:", err);
+  } catch {
+    handlers.setError('Could not read a progress update. Reconnect to reload run status.');
   }
 }

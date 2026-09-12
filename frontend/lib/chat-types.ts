@@ -1,49 +1,46 @@
-// Message Types
+export type RunStatus = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'timed_out' | 'interrupted';
+export interface ToolCall {
+  id?: string;
+  name: string;
+  status: 'success' | 'error' | 'running';
+  output?: string;
+  duration_ms?: number;
+}
 export interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
-  formatted?: string; // Formatted markdown content from backend
   created_at: string;
   event_type?: string;
-  tool_calls?: Array<{
-    name: string;
-    status: "success" | "error" | "running";
-    output?: string;
-  }>;
+  tool_calls?: ToolCall[];
 }
-
-export interface ActiveToolCall {
-  name: string;
-  status: "running" | "completed";
-  output?: string;
-}
-
-export interface WebSocketMessage {
-  type?: string;
-  e?: string;
+export interface RunEvent {
+  e: string;
+  run_id: string;
+  event_id: string;
+  created_at: string;
+  name?: string;
+  call_id?: string;
+  ok?: boolean;
+  status?: RunStatus;
   message?: string;
-  content?: any; // Raw content
-  formatted?: string; // Formatted markdown
-  url?: string;
-  app_url?: string;
-  messages?: Message[];
-  tool_name?: string;
-  tool_output?: string | object;
-  tokens_remaining?: number;
-  reset_in_hours?: number;
-  [key: string]: unknown;
+  output?: string;
+  duration_ms?: number;
+  url?: string | null;
 }
-
-// State Setters Type
+export interface RunSnapshot {
+  id: string;
+  created_at?: string;
+  status: RunStatus;
+  reason?: string;
+  events: RunEvent[];
+}
 export interface WebSocketHandlers {
-  setCurrentTool: (tool: ActiveToolCall | null) => void;
-  setIsBuilding: (isBuilding: boolean) => void;
-  pollUrlUntilReady: (url: string) => void;
+  terminalRuns: Set<string>;
+  setIsBuilding: (value: boolean) => void;
+  setRunId: (id: string | null) => void;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   setAppUrl: (url: string | null) => void;
   setError: (error: string | null) => void;
-  setUserData: (data: any) => void;
   consolidateMessages: (messages: Message[]) => Message[];
-  currentTool: ActiveToolCall | null;
 }

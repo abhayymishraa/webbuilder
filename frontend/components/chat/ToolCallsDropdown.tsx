@@ -1,10 +1,6 @@
 import { ChevronDown, Loader2 } from "lucide-react";
 
-interface ToolCall {
-  name: string;
-  status: "success" | "error" | "running";
-  output?: string;
-}
+import type { ToolCall } from "@/lib/chat-types";
 
 interface ToolCallsDropdownProps {
   toolCalls: ToolCall[];
@@ -42,7 +38,7 @@ export function ToolCallsDropdown({
         <div className="mt-2 mb-3 space-y-2 max-h-64 overflow-y-auto">
           {toolCalls.map((tool, idx) => (
             <div
-              key={idx}
+              key={tool.id || idx}
               className="flex items-start gap-3 text-xs px-4 py-3 bg-black/60 border border-white/5 rounded-lg hover:border-white/10 transition-colors"
             >
               <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/5 shrink-0 mt-0.5">
@@ -56,7 +52,7 @@ export function ToolCallsDropdown({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-white/90 font-medium mb-1">
-                  {tool.name}
+                  {tool.name}{tool.duration_ms !== undefined && <span className="ml-2 text-white/40">{(tool.duration_ms / 1000).toFixed(1)}s</span>}
                 </div>
                 {tool.output && (
                   <div className="text-white/50 text-[11px] leading-relaxed wrap-break-word">

@@ -8,5 +8,4 @@ export { ToolCallsDropdown } from "./ToolCallsDropdown";
 export { PreviewPanel } from "./PreviewPanel";
 export { ChatInput } from "./ChatInput";
 export { FileViewer } from "./FileViewer";
-export { FormattedMessage } from "./FormattedMessage";
 export { ProjectsList } from "./ProjectsList";

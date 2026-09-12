@@ -4,7 +4,6 @@ import { FileViewer } from "./FileViewer";
 
 interface PreviewPanelProps {
   appUrl: string | null;
-  isCheckingUrl: boolean;
   previewWidth: number;
   files: string[];
   projectId: string;
@@ -14,7 +13,6 @@ type TabType = "preview" | "files";
 
 export function PreviewPanel({
   appUrl,
-  isCheckingUrl,
   previewWidth,
   files,
   projectId,
@@ -56,7 +54,7 @@ export function PreviewPanel({
         </div>
 
         {/* Open in New Tab button - only shows when URL is available */}
-        {appUrl && !isCheckingUrl && (
+        {appUrl && (
           <button
             onClick={() => window.open(appUrl, "_blank")}
             className="flex items-center gap-1.5 px-3 py-2 mx-2 text-xs font-medium text-white/70 hover:text-white hover:bg-white/10 rounded transition-colors"
@@ -72,16 +70,7 @@ export function PreviewPanel({
       <div className="flex-1 overflow-hidden">
         {activeTab === "preview" ? (
           <div className="h-full p-6">
-            {isCheckingUrl ? (
-              <div className="w-full h-full rounded-lg border border-white/10 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white/60 mx-auto mb-4" />
-                  <p className="text-white/60 font-sans">
-                    Checking if app is ready...
-                  </p>
-                </div>
-              </div>
-            ) : appUrl ? (
+            {appUrl ? (
               <div className="w-full h-full rounded-lg overflow-hidden border border-white/10">
                 <iframe
                   src={appUrl}

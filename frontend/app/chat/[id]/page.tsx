@@ -14,7 +14,7 @@ import {
 } from "@/components/chat";
 import { consolidateMessages, getAllToolCalls } from "@/lib/chat-utils";
 import { handleWebSocketMessage } from "@/lib/websocket-handlers";
-import type { Message, ActiveToolCall } from "@/lib/chat-types";
+import type { Message } from "@/lib/chat-types";
 
 export default function ChatIdPage() {
   const params = useParams();
@@ -28,19 +28,18 @@ export default function ChatIdPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [appUrl, setAppUrl] = useState<string | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
+  const [runId, setRunId] = useState<string | null>(null);
   const [previewWidth, setPreviewWidth] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [userData, setUserData] = useState<any>(null);
-  const [currentTool, setCurrentTool] = useState<ActiveToolCall | null>(null);
-  const [isCheckingUrl, setIsCheckingUrl] = useState(false);
   const [showAllToolsDropdown, setShowAllToolsDropdown] = useState(false);
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const terminalRuns = useRef(new Set<string>());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const urlCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check authentication and load initial data
   useEffect(() => {
@@ -98,61 +97,6 @@ export default function ChatIdPage() {
       }
     }
   };
-
-  // Function to check if URL is ready
-  const checkUrlReady = async (url: string): Promise<boolean> => {
-    try {
-      const response = await fetch(url, {
-        method: "HEAD",
-        mode: "no-cors", // This will prevent CORS errors
-      });
-      // With no-cors, we can't read the status, but if it doesn't throw, it's accessible
-      return true;
-    } catch (error) {
-      console.log("URL not ready yet:", error);
-      return false;
-    }
-  };
-
-  // Poll URL until it's ready
-  const pollUrlUntilReady = async (url: string) => {
-    setIsCheckingUrl(true);
-    console.log("Starting URL health check for:", url);
-
-    let attempts = 0;
-    const maxAttempts = 20; // 20 attempts over ~20 seconds
-
-    const checkInterval = setInterval(async () => {
-      attempts++;
-      console.log(`Health check attempt ${attempts}/${maxAttempts}`);
-
-      const isReady = await checkUrlReady(url);
-
-      if (isReady || attempts >= maxAttempts) {
-        clearInterval(checkInterval);
-        setIsCheckingUrl(false);
-
-        if (isReady) {
-          console.log("URL is ready, setting iframe");
-          setAppUrl(url);
-        } else {
-          console.log("Max attempts reached, setting iframe anyway");
-          setAppUrl(url);
-        }
-      }
-    }, 1000); // Check every 1 second
-
-    urlCheckIntervalRef.current = checkInterval;
-  };
-
-  // Cleanup interval on unmount
-  useEffect(() => {
-    return () => {
-      if (urlCheckIntervalRef.current) {
-        clearInterval(urlCheckIntervalRef.current);
-      }
-    };
-  }, []);
 
   // Fetch files when appUrl becomes available
   useEffect(() => {
@@ -218,99 +162,79 @@ export default function ChatIdPage() {
     }
   }, [isDragging]);
 
-  // WebSocket connection setup
+  // The connection observes a durable run. Reconnect reloads its authoritative snapshot.
   useEffect(() => {
-    const connectWebSocket = () => {
-      // Prevent duplicate connections
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        console.log("WebSocket already connected, skipping...");
-        return;
-      }
-
+    let disposed = false;
+    let retry: ReturnType<typeof setTimeout>;
+    let attempt = 0;
+    const connect = () => {
+      if (disposed) return;
       const token = localStorage.getItem("auth_token");
-
-      if (!token) {
-        console.log("No token available for WebSocket connection");
-        return;
-      }
-
-      // Small delay to ensure backend is ready
-      setTimeout(() => {
-        try {
-          const wsUrl = `${WS_URL}/ws/${chatId}?token=${token}`;
-          console.log("WebSocket URL being used:", wsUrl);
-          const ws = new WebSocket(wsUrl);
-
-          ws.onopen = () => {
-            console.log("WebSocket connected for chat:", chatId);
-            setWsConnected(true);
-            setError(null);
-          };
-          ws.onerror = () => setWsConnected(false);
-          ws.onmessage = (event) =>
-            handleWebSocketMessage(event, {
-              setCurrentTool,
-              setIsBuilding,
-              pollUrlUntilReady,
-              setMessages,
-              setAppUrl,
-              setError,
-              setUserData,
-              consolidateMessages,
-              currentTool,
-            });
-          ws.onclose = (event) => {
-            console.log(
-              "⛔ WebSocket disconnected, code:",
-              event.code,
-              "reason:",
-              event.reason,
-            );
-            setWsConnected(false);
-          };
-
-          wsRef.current = ws;
-        } catch (err) {
-          console.log("WebSocket connection failed:", err);
-          setWsConnected(false);
+      if (!token) { router.push('/signin'); return; }
+      const ws = new WebSocket(`${WS_URL}/ws/${chatId}`);
+      wsRef.current = ws;
+      ws.onopen = () => {
+        if (disposed) { ws.close(); return; }
+        ws.send(JSON.stringify({ type: 'auth', token }));
+        attempt = 0;
+        setWsConnected(true);
+        setError(null);
+      };
+      ws.onmessage = event => {
+        if (disposed || wsRef.current !== ws) return;
+        let incoming;
+        try { incoming = JSON.parse(event.data); } catch { return; }
+        if (incoming.e === 'resync') {
+          ws.send(JSON.stringify({ type: 'resync' }));
+          return;
         }
-      }, 100); // 100ms delay
+        handleWebSocketMessage(event, { setIsBuilding, setRunId,
+          setMessages, setAppUrl, setError, consolidateMessages, terminalRuns: terminalRuns.current });
+      };
+      ws.onclose = event => {
+        if (disposed || wsRef.current !== ws) return;
+        setWsConnected(false);
+        if (event.code === 1008) {
+          setIsBuilding(false);
+          setError('Session expired or project unavailable. Sign in again.');
+          return;
+        }
+        setError('Connection lost. Reconnecting to check your run; it may still be working.');
+        retry = setTimeout(connect, Math.min(1000 * 2 ** attempt++, 10000));
+      };
+      ws.onerror = () => ws.close();
     };
+    terminalRuns.current.clear();
+    setMessages([]); setAppUrl(null); setRunId(null); setIsBuilding(false);
+    connect();
+    return () => { disposed = true; clearTimeout(retry); wsRef.current?.close(); wsRef.current = null; };
+  }, [chatId, router]);
 
-    connectWebSocket();
-
-    return () => {
-      // Cleanup WebSocket connection
-      if (wsRef.current) {
-        console.log("🧹 Cleaning up WebSocket connection");
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [chatId]);
-
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !wsRef.current || isBuilding) return;
+    const prompt = input.trim();
+    if (!prompt || isBuilding) return;
+    setIsBuilding(true); setError(null);
+    try {
+      const { data } = await apiClient.post<{ run_id: string; tokens_remaining: number }>(`/chats/${chatId}/runs`, { prompt });
+      setRunId(data.run_id);
+      setInput('');
+      const updated = { ...userData, tokens_remaining: data.tokens_remaining };
+      localStorage.setItem('user_data', JSON.stringify(updated)); setUserData(updated);
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: 'resync' }));
+    } catch (err) {
+      setIsBuilding(false);
+      setError(err instanceof Error ? err.message : 'Request was not accepted');
+    }
+  };
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input.trim(),
-      created_at: new Date().toISOString(),
-    };
-
-    // Send message through WebSocket
-    const message = {
-      type: "chat_message",
-      prompt: input.trim(),
-    };
-    wsRef.current.send(JSON.stringify(message));
-
-    // Add user message to chat
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsBuilding(true); // Immediately show building state
+  const handleCancel = async () => {
+    if (!runId) return;
+    try {
+      await apiClient.post(`/runs/${runId}/cancel`);
+      setIsBuilding(false); setRunId(null);
+      if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify({ type: 'resync' }));
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not stop the run'); }
   };
 
   return (
@@ -360,12 +284,10 @@ export default function ChatIdPage() {
                 </div>
               ) : null}
 
-              {messages.map((msg, index) => (
+              {messages.map((msg) => (
                 <MessageBubble
-                  key={index}
+                  key={msg.id}
                   message={msg}
-                  isLastMessage={index === messages.length - 1}
-                  currentTool={currentTool}
                 />
               ))}
 
@@ -384,6 +306,8 @@ export default function ChatIdPage() {
               isBuilding={isBuilding}
               onInputChange={setInput}
               onSubmit={handleSendMessage}
+              onCancel={handleCancel}
+              canCancel={Boolean(runId)}
             />
           </div>
 
@@ -400,7 +324,6 @@ export default function ChatIdPage() {
           {showPreview && (
             <PreviewPanel
               appUrl={appUrl}
-              isCheckingUrl={isCheckingUrl}
               previewWidth={previewWidth}
               files={projectFiles}
               projectId={chatId}
