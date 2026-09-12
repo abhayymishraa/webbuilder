@@ -1,6 +1,4 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
 
 interface ChatInputBoxProps {
   input: string;
@@ -16,27 +14,34 @@ export function ChatInputBox({
   onSubmit,
 }: ChatInputBoxProps) {
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm hover:border-white/20 transition-colors">
-        <Input
-          type="text"
-          placeholder="Message Web Builder"
-          value={input}
-          onChange={(e) => onInputChange(e.target.value)}
-          disabled={isLoading}
-          className="border-0 bg-transparent text-white placeholder:text-white/40 focus-visible:ring-0 text-lg"
-        />
-
-        <div className="flex justify-end mt-4 pt-4 border-t border-white/5">
-          <Button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            size="icon"
-            className="rounded-lg w-8 h-8 bg-white text-black hover:bg-slate-100"
-          >
-            <ArrowUp size={18} />
-          </Button>
-        </div>
+    <form onSubmit={onSubmit} className="ember-composer" aria-busy={isLoading}>
+      <label className="sr-only" htmlFor="project-brief">
+        Describe your app
+      </label>
+      <textarea
+        id="project-brief"
+        placeholder="A reading list for my book club, a portfolio for my work…"
+        value={input}
+        onChange={(event) => onInputChange(event.target.value)}
+        disabled={isLoading}
+        rows={4}
+        required
+      />
+      <div className="ember-composer-footer">
+        <span>A clear brief is a good beginning.</span>
+        <button
+          type="submit"
+          disabled={isLoading || !input.trim()}
+          className="ember-button"
+          aria-label={isLoading ? "Starting your project" : "Start building"}
+        >
+          {isLoading ? (
+            <Loader2 size={17} className="animate-spin" />
+          ) : (
+            <ArrowUp size={17} />
+          )}
+          <span>{isLoading ? "Starting…" : "Start building"}</span>
+        </button>
       </div>
     </form>
   );

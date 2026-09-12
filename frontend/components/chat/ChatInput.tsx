@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ArrowUp } from "lucide-react";
+// Composer structure adapted from Beautiful UI ChatComposer, MIT © 2026 Shane Levine.
+// See ../ember/BEAUTIFUL-UI-LICENSE. The parent owns the real run lifecycle.
+import { ArrowUp, Square } from "lucide-react";
 
 interface ChatInputProps {
   input: string;
@@ -22,30 +22,59 @@ export function ChatInput({
   canCancel,
 }: ChatInputProps) {
   return (
-    <div className="border-t border-white/5 bg-black/40 backdrop-blur-md p-4">
-      <form onSubmit={onSubmit}>
-        <div className="bg-white/5 border border-white/10 rounded-lg p-3 hover:border-white/20 transition-colors">
-          <div className="flex gap-3">
-            <Input
-              type="text"
-              value={input}
-              onChange={(e) => onInputChange(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-1 border-0 bg-transparent text-white font-sans placeholder:text-white/40 focus-visible:ring-0"
-              disabled={!wsConnected || isBuilding}
-            />
-            <div className="flex items-center gap-1">
-              {isBuilding && <Button type="button" onClick={onCancel} disabled={!canCancel} variant="outline">Stop</Button>}
-              <Button
-                type="submit"
-                disabled={!wsConnected || !input.trim() || isBuilding}
-                size="icon"
-                className="rounded-lg w-8 h-8 bg-white text-black hover:bg-slate-100"
-              >
-                <ArrowUp size={16} />
-              </Button>
-            </div>
-          </div>
+    <div className="ember-chat-input">
+      <form className="ember-composer" onSubmit={onSubmit}>
+        <label htmlFor="chat-prompt" className="sr-only">
+          Describe a change to your app
+        </label>
+        <textarea
+          id="chat-prompt"
+          value={input}
+          onChange={(event) => onInputChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              if (wsConnected && !isBuilding && input.trim())
+                event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          placeholder="Describe a change to your app…"
+          disabled={!wsConnected || isBuilding}
+          rows={2}
+        />
+        <div className="ember-composer-footer">
+          <span className="ember-connection" data-connected={wsConnected}>
+            {isBuilding
+              ? "Working on your app"
+              : wsConnected
+                ? "Connected · Shift + Enter for a new line"
+                : "Reconnecting to your project…"}
+          </span>
+          {isBuilding ? (
+            <button
+              type="button"
+              className="ember-button"
+              onClick={onCancel}
+              disabled={!canCancel}
+              aria-label="Stop the current run"
+            >
+              <Square size={14} />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="ember-button ember-send"
+              disabled={!wsConnected || !input.trim()}
+              aria-label="Send message"
+            >
+              <ArrowUp size={17} />
+            </button>
+          )}
         </div>
       </form>
     </div>
