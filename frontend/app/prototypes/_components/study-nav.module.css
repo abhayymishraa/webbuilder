@@ -1,0 +1,10 @@
+.header { position: relative; z-index: 1; width: 100%; max-width: 1160px; min-height: 76px; margin-inline: auto; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px 32px; color: #eee3db; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.header a { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
+.home { gap: 8px; font-size: 18px; font-weight: 600; letter-spacing: -.04em; }
+.home span { font-size: 13px; font-weight: 400; color: #b7a79c; letter-spacing: 0; }
+.header nav { display: flex; gap: 24px; }
+.header nav a { font-size: 13px; color: #b7a79c; }
+.header nav a[aria-current="page"] { color: #ff946e; text-decoration: underline; text-underline-offset: 7px; }
+.header a:focus-visible { outline: 2px solid #ff946e; outline-offset: 4px; }
+@media (hover: hover) and (pointer: fine) { .header a:hover { color: #fff4eb; } }
+@media (max-width: 600px) { .header { padding: 12px 22px; flex-wrap: wrap; gap: 0 24px; } .header nav { gap: 24px; } }
