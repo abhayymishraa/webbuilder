@@ -1,7 +1,8 @@
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { FolderOpen, LogOut, Plus } from "lucide-react";
 import type { UserData } from "@/api";
-import { ProjectsList } from "./ProjectsList";
+import { Brand } from "@/components/ember/Brand";
+import { ThemeToggle } from "@/components/ember/ThemeProvider";
 
 interface ChatNavbarProps {
   isAuthenticated: boolean;
@@ -15,62 +16,46 @@ export function ChatNavbar({
   onSignOut,
 }: ChatNavbarProps) {
   return (
-    <nav className="relative z-20 border-b border-white/5 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-        <div className="text-white font-semibold text-lg">WEB BUILDER</div>
-        <div className="flex items-center gap-8">
-          <div className="hidden md:flex gap-8 text-sm text-slate-400">
-            <a href="#" className="hover:text-white transition">
-              Pricing
-            </a>
-            <a href="#" className="hover:text-white transition">
-              Product
-            </a>
-            <a href="#" className="hover:text-white transition">
-              Docs
-            </a>
-          </div>
-          <div className="flex gap-2">
-            {isAuthenticated ? (
-              <>
-                <ProjectsList />
-                <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10">
-                  <span className="text-sm text-white/60">
-                    {userData?.email}
+    <header className="ember-workspace-header">
+      <Brand />
+      <div className="ember-row">
+        <ThemeToggle />
+        {isAuthenticated ? (
+          <>
+            <Link href="/projects" className="ember-text-link">
+              <FolderOpen size={16} />
+              Projects
+            </Link>
+            <div className="ember-account">
+              {userData && (
+                <>
+                  <span>{userData.email}</span>
+                  <span className="ember-balance">
+                    {userData.tokens_remaining} credits
                   </span>
-                  <span className="text-xs text-white/40">•</span>
-                  <span className="text-sm text-white font-medium">
-                    {userData?.tokens_remaining} tokens
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  className="text-white border-white/20 hover:bg-white/5 bg-transparent"
-                  onClick={onSignOut}
-                >
-                  Sign Out
-                </Button>
-              </>
-            ) : (
-              <>
-                <Link href="/signin">
-                  <Button
-                    variant="outline"
-                    className="text-white border-white/20 hover:bg-white/5 bg-transparent"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-                <Link href="/signup">
-                  <Button className="bg-white text-black hover:bg-slate-100">
-                    Sign Up
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
+                </>
+              )}
+            </div>
+            <button
+              className="ember-icon"
+              onClick={onSignOut}
+              aria-label="Sign out"
+            >
+              <LogOut size={17} />
+            </button>
+          </>
+        ) : (
+          <>
+            <Link href="/signin" className="ember-text-link">
+              Sign in
+            </Link>
+            <Link href="/signup" className="ember-button">
+              <Plus size={16} />
+              Sign up
+            </Link>
+          </>
+        )}
       </div>
-    </nav>
+    </header>
   );
 }
