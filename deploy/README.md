@@ -13,7 +13,7 @@ Backend: `https://webbuilder-api.abhayymishraa.us`.
 
 1. On the Ubuntu VM, install Docker and Docker Compose 2.30 or newer. Allow TCP 80/443 to the VM.
 2. Save backend credentials in `/opt/webbuilder/runtime.env` with mode `600`, using
-   `runtime.env.example` as the key list. Use the intended PostgreSQL database. The deployment creates missing initial
+   `runtime.env.example` as the key list. Use the intended PostgreSQL database. The deployment creates missing
    tables through `python -m db.migrate`; it never drops existing data. Generate a strong
    `SECRET_KEY`; never use the application's development fallback in production.
 3. Create a DNS A record for the backend domain pointing at the VM. Caddy obtains and
@@ -40,7 +40,8 @@ Vercel's Git integration deploys frontend changes. The backend workflow can also
 be started manually for `main` in GitHub Actions.
 
 Each backend image is tagged with the full Git commit SHA. Deployments serialize,
-load the new image, check database readiness, and verify HTTPS before marking the
+run provider-free orchestration regressions before packaging, load the new image,
+check database readiness, and verify HTTPS before marking the
 release current. A failed rollout restores the previous image and Compose files.
 The VM retains the current and previous image; logs have bounded rotation.
 The API runs as a non-root user with a read-only root filesystem and capped memory.
@@ -48,9 +49,34 @@ Docker's periodic check uses the process-only `/` endpoint so it does not keep
 Neon awake. Database readiness is checked during deployment and on demand, allowing
 an idle Neon database to suspend and conserve its free compute allowance.
 
-One API worker is intentional: WebSocket connections, runs, and sandboxes are held
-in memory. Restarting the API interrupts active generations; users should retry
-after deployment. This setup does not provide zero-downtime failover.
+One API worker is required: execution ownership, WebSocket subscribers and sandbox
+handles are in memory. Run outcomes and bounded activity checkpoints are in PostgreSQL.
+Startup marks unfinished runs `interrupted`; it never replays mutations automatically.
+Restarting the API interrupts active generations. This setup does not provide
+zero-downtime failover, and adding workers would violate admission/ownership assumptions.
+
+## Roll out the orchestration change
+
+The 12 September implementation has been checked locally with real OpenAI/E2B,
+but that does not establish deployment of this revision.
+
+1. Set `E2B_TEMPLATE_ID=xjklh0xbjh3wpgu0w306` in the VM's private runtime file.
+   This `webbuilder-react-verified` template includes the browser checker dependencies.
+   Keep the old value with the previous release configuration for rollback.
+2. Allow current generations to finish, then release backend and frontend together.
+   The workflow creates the additive `runs` table before API startup. The new first-frame
+   WebSocket authentication and HTTP follow-up protocol require both sides to be updated;
+   old browser tabs must reload. Independently completing Vercel/GitHub deploys can leave
+   a short incompatible interval. Use a maintenance window for this first transition.
+3. Confirm readiness, login, snapshot recovery and Stop. Generation checks use paid
+   providers; the routine health check does not generate an application.
+
+For rollback, restore both frontend and backend revisions. Leave the additive `runs`
+table in place. The old backend cannot read version-2 project snapshots written by
+this release: back up `/opt/webbuilder/projects` before rollout and restore that backup
+if rolling back. This loses edits made after the backup, so retain the newer files too.
+The [architecture document](../docs/architecture/orchestration.md) describes the limits
+and snapshot semantics.
 
 ## Operations
 

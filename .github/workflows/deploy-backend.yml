@@ -5,9 +5,9 @@ on:
     branches: [main]
     paths:
       - 'agent/**'
+      - 'tests/**'
       - 'auth/**'
       - 'db/**'
-      - 'utils/**'
       - 'main.py'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -43,6 +43,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
+      - name: Run orchestration regressions
+        run: docker run --rm -v "$PWD/tests:/tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m unittest discover -s /tests -v
       - name: Package runtime artifact
         run: docker save webbuilder-backend:"$GITHUB_SHA" | gzip -1 > backend-image.tar.gz
       - name: Deploy and check readiness
