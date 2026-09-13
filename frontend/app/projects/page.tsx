@@ -8,6 +8,8 @@ import { Plus } from "lucide-react";
 import { authApi, type UserData } from "@/api";
 import { ChatNavbar } from "@/components/chat/ChatNavbar";
 import { ProjectCollection } from "@/components/chat/ProjectCollection";
+import { ProjectCollectionSkeleton } from "@/components/chat/ProjectCollectionSkeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -61,9 +63,12 @@ export default function ProjectsPage() {
           {ready ? (
             <ProjectCollection />
           ) : (
-            <p role="status" className="ember-helper">
-              Opening your workspace…
-            </p>
+            <>
+              <div className="ember-project-toolbar" aria-hidden="true">
+                <div className="ember-search"><Skeleton className="h-5 w-44 max-w-full" /></div>
+              </div>
+              <ProjectCollectionSkeleton />
+            </>
           )}
         </main>
       </div>

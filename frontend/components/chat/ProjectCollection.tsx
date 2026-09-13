@@ -1,16 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
   FolderOpen,
-  Loader2,
   PanelsTopLeft,
   Search,
 } from "lucide-react";
 import { chatApi } from "@/api/chat";
 import type { Project } from "@/api/types";
+import { ProjectCollectionSkeleton } from "./ProjectCollectionSkeleton";
+import styles from "./project-spotlight.module.css";
+
+// 21st's lightweight Spotlight Card pattern: update CSS variables, not React state.
+// https://21st.dev/blog/react-spotlight-effect-components
+function updateSpotlight(event: PointerEvent<HTMLDivElement>) {
+  if (
+    event.pointerType === "touch" ||
+    document.documentElement.dataset.theme === "light" ||
+    !window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)").matches
+  ) return;
+
+  const card = event.target instanceof Element
+    ? event.target.closest<HTMLElement>("[data-project-spotlight]")
+    : null;
+  if (!card) return;
+
+  const bounds = card.getBoundingClientRect();
+  card.style.setProperty("--spotlight-x", `${event.clientX - bounds.left}px`);
+  card.style.setProperty("--spotlight-y", `${event.clientY - bounds.top}px`);
+}
 
 export function ProjectCollection({
   compact = false,
@@ -66,10 +86,7 @@ export function ProjectCollection({
         )}
       </div>
       {loading ? (
-        <div className="ember-empty" role="status">
-          <Loader2 className="animate-spin" size={24} />
-          <p>Loading your projects…</p>
-        </div>
+        <ProjectCollectionSkeleton compact={compact} />
       ) : error ? (
         <div className="ember-empty">
           <p role="alert">{error}</p>
@@ -105,12 +122,16 @@ export function ProjectCollection({
           )}
         </div>
       ) : (
-        <div className={compact ? "ember-project-stack" : "ember-project-grid"}>
+        <div
+          className={compact ? "ember-project-stack" : "ember-project-grid"}
+          onPointerMove={updateSpotlight}
+        >
           {visible.map((project) => (
             <Link
               href={`/chat/${project.id}`}
               key={project.id}
-              className="ember-project-card"
+              className={`ember-project-card ${styles.card}`}
+              data-project-spotlight=""
               onClick={onOpen}
             >
               {!compact && (

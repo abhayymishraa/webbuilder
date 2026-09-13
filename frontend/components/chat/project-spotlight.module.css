@@ -1,0 +1,26 @@
+.card {
+  position: relative;
+  isolation: isolate;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :global(:root:not([data-theme="light"])) .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      260px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+      rgb(255 97 41 / 14%),
+      transparent 75%
+    );
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+
+  :global(:root:not([data-theme="light"])) .card:hover::after {
+    opacity: 1;
+  }
+}
