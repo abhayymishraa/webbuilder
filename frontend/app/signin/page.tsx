@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { authApi } from "@/api";
 import { AuthFrame } from "@/components/ember/AuthFrame";
+import { SocialLogin } from "@/components/ember/SocialLogin";
 
 export default function SignInPage() {
   const [email, setEmail] = useState("");
@@ -101,6 +102,7 @@ export default function SignInPage() {
 
   return (
     <AuthFrame>
+      <SocialLogin />
       <form
         onSubmit={handleSubmit}
         className="ember-form"
@@ -152,6 +154,7 @@ export default function SignInPage() {
           )}
         </Button>
       </form>
+      <p className="ember-auth-switch"><Link href="/verify-email">Verify your email</Link></p>
       <p className="ember-auth-switch">
         New to WebBuilder? <Link href="/signup">Create a workspace</Link>
       </p>

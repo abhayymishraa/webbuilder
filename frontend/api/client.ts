@@ -35,6 +35,12 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
+    const detail = error.response?.data?.detail;
+    if (error.response?.status === 403 && typeof detail === "string" && detail.startsWith("Verify your email")) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("user_data");
+      if (window.location.pathname !== "/verify-email") window.location.replace("/verify-email");
+    }
     // Handle 401 Unauthorized - redirect to login
     if (error.response?.status === 401) {
       // Clear auth data

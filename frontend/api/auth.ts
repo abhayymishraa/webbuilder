@@ -5,12 +5,19 @@ import {
   LoginRequest,
   RegisterRequest,
   UserData,
+  AuthOptions,
 } from "./types";
 
 /**
  * Auth API Service
  */
 export const authApi = {
+  options: async (): Promise<AuthOptions> => (await apiClient.get<AuthOptions>("/auth/options")).data,
+  updateProfile: async (data: { name: string; bio: string }): Promise<UserData> => (await apiClient.patch<UserData>("/auth/me", data)).data,
+  requestVerification: async (email: string): Promise<{ message: string }> => (await apiClient.post<{ message: string }>("/auth/verification/request", { email })).data,
+  confirmVerification: async (token: string): Promise<LoginResponse> => (await apiClient.post<LoginResponse>("/auth/verification/confirm", { token })).data,
+  exchangeOAuth: async (token: string): Promise<LoginResponse> => (await apiClient.post<LoginResponse>("/auth/oauth/exchange", { token })).data,
+  linkProvider: async (provider: "google" | "github"): Promise<{ url: string }> => (await apiClient.post<{ url: string }>(`/auth/oauth/${provider}/link`)).data,
   /**
    * Login user
    */

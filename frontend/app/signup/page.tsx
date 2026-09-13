@@ -2,13 +2,13 @@
 
 import type React from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { authApi } from "@/api";
+import { type AuthOptions, authApi } from "@/api";
 import { AuthFrame } from "@/components/ember/AuthFrame";
+import { SocialLogin } from "@/components/ember/SocialLogin";
 
 export default function SignUpPage() {
   const [name, setName] = useState("");
@@ -16,7 +16,8 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const router = useRouter();
+  const [options, setOptions] = useState<AuthOptions | null>(null);
+  const [registered, setRegistered] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,29 +25,9 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      // Call the register API
-      const data = await authApi.register({ name, email, password });
-
-      // Validate response data
-      if (!data.access_token || !data.user) {
-        console.error("Invalid response:", data);
-        throw new Error("Invalid response from server");
-      }
-
-      // Store token in localStorage
-      localStorage.setItem("auth_token", data.access_token);
-
-      // Store user data
-      localStorage.setItem("user_data", JSON.stringify(data.user));
-
-      // Verify token was stored before redirect
-      const storedToken = localStorage.getItem("auth_token");
-      if (!storedToken) {
-        throw new Error("Failed to store authentication token");
-      }
-
+      await authApi.register({ name, email, password });
+      setRegistered(true);
       setIsLoading(false);
-      router.push("/chat");
     } catch (error: unknown) {
       console.error("Error signing up:", error);
       const errorMessage =
@@ -60,14 +41,17 @@ export default function SignUpPage() {
       }
 
       setIsLoading(false);
-      // Clear any partial data on error
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("user_data");
     }
   };
 
+  if (registered) return <AuthFrame signup>
+    <p role="status">We sent a verification link to {email}. Open it within 30 minutes to continue.</p>
+    <p className="ember-auth-switch"><Link href="/verify-email">Resend verification email</Link></p>
+  </AuthFrame>;
+
   return (
     <AuthFrame signup>
+      <SocialLogin registration onOptions={setOptions} />
       <form
         onSubmit={handleSubmit}
         className="ember-form"
@@ -107,20 +91,21 @@ export default function SignUpPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
+            maxLength={256}
             disabled={isLoading}
             aria-describedby="password-hint"
           />
         </label>
         <p id="password-hint" className="ember-helper">
-          Use at least 6 characters.
+          Use at least 8 characters. Verify your email to open your workspace.
         </p>
         {error && (
           <p className="ember-error" role="alert">
             {error}
           </p>
         )}
-        <Button type="submit" disabled={isLoading} className="ember-button">
+        <Button type="submit" disabled={isLoading || !options?.email_verification} className="ember-button">
           {isLoading ? (
             <>
               <Loader2 size={16} className="animate-spin" />

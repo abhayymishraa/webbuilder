@@ -1,0 +1,47 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { authApi } from "@/api";
+import { AuthFrame } from "@/components/ember/AuthFrame";
+import type { LoginResponse } from "@/api/types";
+
+const errors: Record<string, string> = {
+  link_required: "An account already uses this email. Sign in with email, then connect this provider from your profile.",
+  verified_email_required: "Your provider must have a verified email address before you can continue.",
+  account_conflict: "This provider is already connected to another account, or your account already has a different connection.",
+  oauth_failed: "Sign-in was cancelled or could not be completed. Please try again.",
+};
+
+export default function OAuthCallbackPage() {
+  const router = useRouter();
+  const [error, setError] = useState("");
+  // Reuse the one-time exchange across Strict Mode effect setup/cleanup.
+  const exchange = useRef<Promise<LoginResponse> | null>(null);
+  const callbackError = useRef("");
+  useEffect(() => {
+    let disposed = false;
+    if (!exchange.current && !callbackError.current) {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const ticket = params.get("ticket");
+      callbackError.current = params.get("error") || (!ticket ? "oauth_failed" : "");
+      window.history.replaceState(null, "", window.location.pathname);
+      if (ticket && !callbackError.current) exchange.current = authApi.exchangeOAuth(ticket);
+    }
+    if (callbackError.current) setError(errors[callbackError.current] || errors.oauth_failed);
+    exchange.current?.then(async session => {
+      if (disposed) return;
+      localStorage.setItem("auth_token", session.access_token);
+      localStorage.removeItem("user_data");
+      const user = await authApi.getCurrentUser();
+      if (disposed) return;
+      localStorage.setItem("user_data", JSON.stringify(user));
+      router.replace("/chat");
+    }).catch(() => { if (!disposed) setError(errors.oauth_failed); });
+    return () => { disposed = true; };
+  }, [router]);
+  return <AuthFrame title="Connecting your account" description="We’re getting your workspace ready.">
+    {error ? <><p className="ember-error" role="alert">{error}</p><p className="ember-auth-switch"><Link href="/signin">Back to sign in</Link></p></> : <p role="status">Opening your workspace…</p>}
+  </AuthFrame>;
+}

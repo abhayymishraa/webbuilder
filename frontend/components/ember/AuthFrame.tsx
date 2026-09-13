@@ -4,9 +4,13 @@ import { ThemeToggle } from "./ThemeProvider";
 
 export function AuthFrame({
   signup = false,
+  title,
+  description,
   children,
 }: {
   signup?: boolean;
+  title?: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -37,11 +41,11 @@ export function AuthFrame({
           </p>
         </div>
         <section className="ember-auth-form">
-          <h2>{signup ? "Create your workspace" : "Welcome back"}</h2>
+          <h2>{title || (signup ? "Create your workspace" : "Welcome back")}</h2>
           <p>
-            {signup
+            {description || (signup
               ? "A place for your next good idea."
-              : "Sign in to continue making."}
+              : "Sign in to continue making.")}
           </p>
           {children}
         </section>

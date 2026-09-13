@@ -5,6 +5,12 @@ export interface UserData {
   email: string;
   name: string;
   tokens_remaining: number;
+  tokens_reset_at?: string | null;
+  credits_unlimited?: boolean;
+  bio?: string;
+  email_verified?: boolean;
+  created_at?: string;
+  providers?: string[];
 }
 
 export interface LoginResponse {
@@ -14,9 +20,13 @@ export interface LoginResponse {
 }
 
 export interface RegisterResponse {
-  access_token: string;
-  token_type: string;
-  user: UserData;
+  verification_required: boolean;
+  message: string;
+}
+
+export interface AuthOptions {
+  providers: { google: boolean; github: boolean };
+  email_verification: boolean;
 }
 
 export interface LoginRequest {
