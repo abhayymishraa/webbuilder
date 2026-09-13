@@ -17,9 +17,14 @@ chown 10001:10001 "$root/projects"
 exec 9>"$root/deploy.lock"
 flock -w 300 9
 [[ -s "$root/runtime.env" ]] || { echo 'Missing runtime.env'; exit 1; }
-for key in DATABASE_URL OPENAI_API_KEY E2B_API_KEY E2B_TEMPLATE_ID; do
+for key in DATABASE_URL OPENAI_API_KEY E2B_API_KEY E2B_TEMPLATE_ID STORAGE_BUCKET; do
     grep -qE "^${key}=.+$" "$root/runtime.env" || { echo "Missing $key"; exit 1; }
 done
+grep -qE '^STORAGE_PROVIDER=gcs$' "$root/runtime.env" || { echo 'Production requires STORAGE_PROVIDER=gcs'; exit 1; }
+grep -qE '^GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/gcs.json$' "$root/runtime.env" || { echo 'Set GOOGLE_APPLICATION_CREDENTIALS to the mounted credential path'; exit 1; }
+[[ -s "$root/secrets/gcs.json" ]] || { echo 'Missing private GCS credentials file'; exit 1; }
+chown 10001:10001 "$root/secrets/gcs.json"
+chmod 400 "$root/secrets/gcs.json"
 grep -qE '^SECRET_KEY=.{32,}$' "$root/runtime.env" || { echo 'SECRET_KEY must contain at least 32 characters'; exit 1; }
 previous=$(readlink -f "$root/current" 2>/dev/null || true)
 [[ -f "$previous/compose.yaml" ]] || previous=
@@ -54,10 +59,11 @@ rm -f "$artifact_dir/backend-image.tar.gz"
 docker image inspect "$image" >/dev/null
 compose "$release" config --quiet
 compose "$release" pull proxy
-# Apply the additive initial schema before replacing the running API.
-docker run --rm --env-file "$root/runtime.env" "$image" python -m db.migrate
 trap rollback ERR
 trap 'false' INT TERM
+# Drain the old writer before migrating legacy event arrays into ordered rows.
+if [[ -n "$previous" ]]; then compose "$previous" stop api; fi
+docker run --rm --env-file "$root/runtime.env" "$image" python -m db.migrate
 compose "$release" up -d --no-deps api
 
 healthy=false

@@ -44,7 +44,7 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: false
       - name: Run orchestration regressions
-        run: docker run --rm -v "$PWD/tests:/tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m unittest discover -s /tests -v
+        run: docker run --rm -e SECRET_KEY=ci-only-test-signing-key-not-for-deployment -v "$PWD/tests:/tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m unittest discover -s /tests -v
       - name: Package runtime artifact
         run: docker save webbuilder-backend:"$GITHUB_SHA" | gzip -1 > backend-image.tar.gz
       - name: Deploy and check readiness
