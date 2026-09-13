@@ -63,11 +63,13 @@ async def archive_run(run_id):
     key = f'logs/{run_id}.jsonl.gz'
     await put_object(key, archive, 'application/gzip')
     # Confirm bytes before allowing expanded DB diagnostics to be pruned later.
-    if hashlib.sha256(await read_object(key, len(archive))).digest() != hashlib.sha256(archive).digest():
+    stored_sha256 = hashlib.sha256(await read_object(key, len(archive))).hexdigest()
+    archive_sha256 = hashlib.sha256(archive).hexdigest()
+    if stored_sha256 != archive_sha256:
         raise StorageError('Run log archive verification failed')
     async with AsyncSessionLocal.begin() as db:
         run = await db.get(Run, run_id)
         if not run:
             return  # Project deletion already queued the deterministic log key for cleanup.
-        run.log_key, run.log_sha256 = key, hashlib.sha256(archive).hexdigest()
+        run.log_key, run.log_sha256 = key, archive_sha256
         run.events = []
