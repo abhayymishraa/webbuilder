@@ -1,0 +1,12 @@
+[
+  {"name":"early_palette","history":["Use Ember orange throughout the app.","Add a contact section.","Make the footer shorter.","Add a biography.","Increase photo size.","Add keyboard navigation.","Make links clearer.","Adjust spacing."],"request":"Add another orange page.","must_retrieve":[0]},
+  {"name":"email_gate","history":["Never allow unverified users to chat.","Add Google login.","Move the avatar.","Use smaller cards.","Add a profile bio.","Improve spacing.","Rename Projects to My apps.","Add a footer."],"request":"Update chat access for unverified users.","must_retrieve":[0]},
+  {"name":"reversed_palette","history":["Use orange.","Add a heading.","Actually replace orange with blue everywhere."],"request":"Add a settings page.","must_retrieve":[0,2],"latest_decision":"Actually replace orange with blue everywhere."},
+  {"name":"named_file","history":["Profile lives in src/pages/Profile.jsx; keep this route.","Add a footer."],"request":"Improve Profile.jsx.","paths":["package.json","src/App.jsx","src/pages/Profile.jsx","src/pages/Home.jsx"],"expected_file":"src/pages/Profile.jsx","must_retrieve":[0]},
+  {"name":"renamed_file","history":["Profile used to be in src/Profile.jsx.","We renamed it to src/pages/Account.jsx. Use Account.jsx from now on."],"request":"Change the account page.","paths":["package.json","src/pages/Account.jsx"],"expected_file":"src/pages/Account.jsx","must_retrieve":[1]},
+  {"name":"ambiguous_reference","history":["The first card uses a mountain.","The second card uses a forest."],"request":"Use the other card.","must_retrieve":[0,1],"expected_behavior":"Clarify which card; context selection cannot resolve intent."},
+  {"name":"failed_work","history":["Add profile settings."],"request":"Continue with profile settings.","previous_run":{"id":"failed-run","status":"failed","reason":"Build failed: missing import"},"must_retrieve":[0]},
+  {"name":"restart","history":["Keep email verification and Ember colors.","Add a profile."],"request":"Continue the profile.","must_retrieve":[0,1],"expected_behavior":"Identical context from a fresh ProjectContext instance."},
+  {"name":"isolation","history":["This project uses orange."],"foreign_history":["Private customer in another project uses purple."],"request":"Which colors does the private customer use?","must_retrieve":[0],"must_exclude":"Private customer"},
+  {"name":"deletion","history":["Keep my project preferences private."],"request":"Continue.","must_retrieve":[0],"expected_behavior":"Deleted project cannot be searched; derived memory cascades."}
+]
