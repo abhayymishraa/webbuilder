@@ -17,11 +17,16 @@ import {
 import { consolidateMessages, getAllToolCalls } from "@/lib/chat-utils";
 import { handleWebSocketMessage } from "@/lib/websocket-handlers";
 import type { Message } from "@/lib/chat-types";
+import { usePreviewLifecycle } from "@/lib/use-preview-lifecycle";
 
 export default function ChatIdPage() {
   const params = useParams();
-  const router = useRouter();
   const chatId = params.id as string;
+  return <ChatWorkspace key={chatId} chatId={chatId} />;
+}
+
+function ChatWorkspace({ chatId }: { chatId: string }) {
+  const router = useRouter();
 
   const [wsConnected, setWsConnected] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -40,6 +45,25 @@ export default function ChatIdPage() {
   const [activeTab, setActiveTab] = useState("conversation");
   const [mobilePane, setMobilePane] = useState("chat");
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
+  const [previewTab, setPreviewTab] = useState<"preview" | "files">("preview");
+  const [desktopPreview, setDesktopPreview] = useState<boolean | null>(null);
+  const preview = usePreviewLifecycle({
+    projectId: chatId,
+    revisionId,
+    isBuilding,
+    enabled: showPreview && previewTab === "preview" && desktopPreview !== null &&
+      (desktopPreview || mobilePane === "preview"),
+    onPreviewOpen: setAppUrl,
+  });
+
+  useEffect(() => {
+    // Match the stylesheet's breakpoint, including CSS-hidden mobile chat.
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setDesktopPreview(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   const wsRef = useRef<WebSocket | null>(null);
   const terminalRuns = useRef(new Set<string>());
@@ -422,8 +446,12 @@ export default function ChatIdPage() {
                 files={projectFiles}
                 revisionId={revisionId}
                 isBuilding={isBuilding}
-                onPreviewOpen={setAppUrl}
                 projectId={chatId}
+                activeTab={previewTab}
+                onTabChange={setPreviewTab}
+                phase={preview.phase}
+                previewError={preview.error}
+                onRetry={preview.retry}
               />
             </>
           )}
