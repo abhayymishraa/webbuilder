@@ -6,7 +6,7 @@ from typing import Optional
 class UserRegister(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=8, max_length=256)
 
 
 class UserLogin(BaseModel):
@@ -26,9 +26,13 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr
     name: str
+    bio: str = ""
+    email_verified: bool = False
+    providers: list[str] = Field(default_factory=list)
     created_at: datetime
     last_query_at: Optional[datetime] = None
     tokens_remaining: int = 2
+    credits_unlimited: bool = False
     tokens_reset_at: Optional[datetime] = None
 
 
@@ -37,7 +41,18 @@ class RefreshTokenRequest(BaseModel):
 
 
 class RegisterResponse(BaseModel):
-    """Response model for successful registration"""
-    access_token: str
-    token_type: str = "bearer"
-    user: UserResponse
+    verification_required: bool = True
+    message: str = "Check your email to verify your account."
+
+
+class ProfileUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    bio: str = Field(default="", max_length=280)
+
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+
+class TokenRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=128)

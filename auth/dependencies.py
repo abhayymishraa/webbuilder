@@ -31,7 +31,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="could not validate credentials",
         )
-    
+
     try:
         user_id = int(user_id_str)
     except (TypeError, ValueError):
@@ -45,6 +45,11 @@ async def get_current_user(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
+
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=403, detail="Verify your email before continuing."
         )
 
     return user

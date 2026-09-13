@@ -5,7 +5,11 @@ from typing import Optional
 from datetime import timezone
 import os
 
-SECRET_KEY = os.getenv("SECRET_KEY", "secret_key")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if len(SECRET_KEY) < 32:
+    raise RuntimeError(
+        "Set SECRET_KEY to at least 32 random characters before starting the backend."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -28,11 +32,9 @@ def create_access_token(data: dict) -> str:
     """Create a JWT access token"""
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     encode_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     return encode_jwt
@@ -42,15 +44,15 @@ def create_refresh_token(data: dict) -> str:
     """Create a Jwt"""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "refresh"})
     encode_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encode_jwt
 
 
-def decode_token(token: str) -> Optional[dict]:
+def decode_token(token: str, token_type: str = "access") -> Optional[dict]:
     """decode a jwt token"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return payload if payload.get("type") == token_type else None
     except JWTError:
         return None
