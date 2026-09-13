@@ -65,8 +65,9 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
     for path in choose_files(paths, prompt, context):
         try:
             content = await workspace.read(path)
-            initial[path] = {'content': content.encode()[:4000].decode('utf-8', errors='ignore'),
-                             'truncated': len(content.encode()) > 4000}
+            encoded = content.encode()
+            initial[path] = {'content': encoded[:4000].decode('utf-8', errors='ignore'),
+                             'truncated': len(encoded) > 4000}
         except Exception:
             initial[path] = {'error': 'Unable to read; inspect with tools before editing'}
     bound = model.bind_tools(list(tools.values()), parallel_tool_calls=False)

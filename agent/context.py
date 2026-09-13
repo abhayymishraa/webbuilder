@@ -71,8 +71,9 @@ def choose_files(paths, prompt, evidence, limit=8):
     def rank(path):
         parts = set(re.findall(r'[\w-]{3,}', path.lower()))
         return (path in mentions, len(parts & words), path == 'package.json')
-    useful = [p for p in paths if any(rank(p))]
-    selected = sorted(useful, key=lambda p: (rank(p), p), reverse=True)[:limit]
+    scored_paths = ((rank(path), path) for path in paths)
+    useful = [(score, path) for score, path in scored_paths if any(score)]
+    selected = [path for _, path in sorted(useful, reverse=True)[:limit]]
     for path in ('package.json', 'src/App.jsx', 'src/pages/Home.jsx', 'src/index.css', 'src/App.css'):
         if path in paths and path not in selected and len(selected) < limit:
             selected.append(path)
@@ -192,11 +193,10 @@ class ProjectContext:
                     if covered:
                         query = query.where(tuple_(Message.created_at, Message.id) > (covered.created_at, covered.id))
                 pending = (await db.execute(query.order_by(Message.created_at, Message.id).limit(101))).all()
-                version = stored_version
             else:
-                pending, version = [], stored_version
+                pending = []
         if pending and (len(pending) > 12 or encoded_size([record(r) for r in pending]) > 12_000):
-            summary = await self.compact(pending, summary, version, revision, model, metrics, token_budget)
+            summary = await self.compact(pending, summary, stored_version, revision, model, metrics, token_budget)
         matches = (await self.search(prompt))['messages']
         result = assemble(recent, matches, first, summary, revision, last_run, self.message_id)
         # IDs/counts only in public metrics, not user content or full source.
@@ -207,9 +207,10 @@ class ProjectContext:
     async def compact(self, pending, previous, version, revision, model, metrics, token_budget):
         rows = []
         for row in pending:
-            if encoded_size({'previous': previous, 'messages': rows + [record(row)]}) > MAX_SUMMARY_INPUT:
+            entry = record(row)
+            if encoded_size({'previous': previous, 'messages': rows + [entry]}) > MAX_SUMMARY_INPUT:
                 break
-            rows.append(record(row))
+            rows.append(entry)
         if not rows:
             return previous
         instructions = """Summarize historical app-building work as JSON with exactly overview (string),
