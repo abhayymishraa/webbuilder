@@ -221,3 +221,18 @@ class ProjectMemory(Base):
     covered_message_id: Mapped[str] = mapped_column(ForeignKey('messages.id', ondelete='CASCADE'))
     revision_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     summary: Mapped[dict] = mapped_column(JSON)
+
+
+class SandboxRuntime(Base):
+    """One owned runtime, retained after project deletion until provider cleanup succeeds."""
+    __tablename__ = 'sandbox_runtimes'
+    # Deliberately no cascade: deleting a project must not erase its cleanup intent.
+    chat_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    operation_id: Mapped[str] = mapped_column(String(36), unique=True)
+    sandbox_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    template_id: Mapped[str] = mapped_column(String(255))
+    generation: Mapped[str] = mapped_column(String(64))
+    revision_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    reusable: Mapped[bool] = mapped_column(Boolean, default=False)
+    state: Mapped[str] = mapped_column(String(16), index=True)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
