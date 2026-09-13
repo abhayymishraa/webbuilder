@@ -12,6 +12,7 @@ on:
       - 'pyproject.toml'
       - 'uv.lock'
       - 'Dockerfile'
+      - 'compose.yaml'
       - '.dockerignore'
       - 'deploy/**'
       - '.github/workflows/deploy-backend.yml'
@@ -28,7 +29,7 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     environment: production
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -43,8 +44,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
-      - name: Run orchestration regressions
-        run: docker run --rm -e SECRET_KEY=ci-only-test-signing-key-not-for-deployment -v "$PWD/tests:/tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m unittest discover -s /tests -v
+      - name: Start isolated test dependencies
+        timeout-minutes: 15
+        run: docker compose -p webbuilder-ci --env-file tests/ci.env.example up -d --build --wait --wait-timeout 180
+      - name: Run offline and database/storage regressions
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          docker run --rm --network host --env-file tests/ci.env.example --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m db.migrate
+          docker run --rm --network host --env-file tests/ci.env.example --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m agent.init_storage
+          docker run --rm --network host --env-file tests/ci.env.example -v "$PWD/tests:/tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" /tests/run_ci.py
+      - name: Remove isolated test dependencies
+        if: always()
+        run: docker compose -p webbuilder-ci --env-file tests/ci.env.example down --volumes --remove-orphans
       - name: Package runtime artifact
         run: docker save webbuilder-backend:"$GITHUB_SHA" | gzip -1 > backend-image.tar.gz
       - name: Deploy and check readiness
