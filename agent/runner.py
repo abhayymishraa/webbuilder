@@ -10,6 +10,8 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from .prompts import SYSTEM_PROMPT
 from .tools import WorkspaceTools, list_files
 from .context import CONTEXT_RULES, choose_files
+from .skills import RuntimeSkills
+from .public_tools import encode_public, public_tool_details, preflight_failure
 
 
 class RunLimitError(Exception):
@@ -44,14 +46,21 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
     await emit('stage', message='Checking sandbox browser tools')
     metrics['sandbox_check'] = await check_browser(workspace, preflight=True)
     if not metrics['sandbox_check']['ok']:
-        raise SandboxSetupError(
-            'Sandbox browser tools are unavailable. Check E2B_TEMPLATE_ID and use the '
-            'webbuilder-react-verified template with Playwright and Chromium installed. '
-            'No model request was made for this run.')
+        category, explanation = preflight_failure(metrics['sandbox_check'])
+        diagnostic = public_tool_details('browser_preflight', result=metrics['sandbox_check'])
+        diagnostic['error_category'] = category
+        await emit('verification', ok=False, message=explanation, checks=diagnostic)
+        raise SandboxSetupError(explanation)
+    await emit('verification', ok=True, message='Sandbox browser startup check passed')
     if model is None:
         from .agent import llm
         model = llm
     tools = {t.name: t for t in workspace.definitions()}
+    skills = RuntimeSkills()
+    skill_prompt = skills.prompt()
+    if skill_prompt:
+        skill_tool = skills.tool()
+        tools[skill_tool.name] = skill_tool
     if memory is not None:
         history_tool = memory.tool()
         tools[history_tool.name] = history_tool
@@ -71,7 +80,7 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
         except Exception:
             initial[path] = {'error': 'Unable to read; inspect with tools before editing'}
     bound = model.bind_tools(list(tools.values()), parallel_tool_calls=False)
-    messages = [SystemMessage(content=SYSTEM_PROMPT + '\n' + CONTEXT_RULES +
+    messages = [SystemMessage(content=SYSTEM_PROMPT + '\n' + CONTEXT_RULES + skill_prompt +
         '\nInitial files may be excerpts. Read complete files before replacing them.'),
         HumanMessage(content=json.dumps({'project_context': context, 'request': prompt,
                                         'files': initial, 'paths': paths}, ensure_ascii=False))]
@@ -123,7 +132,8 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
             if repeated[key] >= 3:
                 raise RunLimitError('Stopped repetitive tool calls without progress')
             call_id = call['id']
-            await emit('tool_started', call_id=call_id, name=call['name'])
+            await emit('tool_started', call_id=call_id, name=call['name'],
+                       details=public_tool_details(call['name'], args=call['args']))
             started = time.monotonic()
             try:
                 if call['name'] not in tools:
@@ -133,12 +143,10 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
                 result = {'ok': False, 'error': str(exc)[:2000]}
             duration = round((time.monotonic() - started) * 1000)
             serialized = json.dumps(result, ensure_ascii=False)
-            # File contents belong in model context, not the user activity log.
-            detail = {'files': list(result['files'])} if 'files' in result else result
-            if call['name'] == 'search_project_history':
-                detail = {'ok': bool(result.get('ok')),
-                          'message_ids': [m['id'] for m in result.get('messages', [])]}
-            await emit('tool_completed', call_id=call_id, name=call['name'], ok=bool(result.get('ok')), duration_ms=duration, output=json.dumps(detail, ensure_ascii=False)[-2000:])
+            detail = public_tool_details(call['name'], args=call['args'], result=result)
+            # Keep valid JSON for old clients; new clients consume the structured projection.
+            await emit('tool_completed', call_id=call_id, name=call['name'], ok=bool(result.get('ok')),
+                       duration_ms=duration, details=detail, output=encode_public(detail))
             messages.append(ToolMessage(content=serialized, tool_call_id=call_id, status='success' if result.get('ok') else 'error'))
         await checkpoint(workspace.revision != before_revision)
     raise RunLimitError('Model-turn budget reached')

@@ -50,7 +50,7 @@ class WorkspaceTools:
                     'stdout': result.stdout[-MAX_OUTPUT:], 'stderr': result.stderr[-MAX_OUTPUT:]}
         except Exception as exc:
             # E2B raises on non-zero exit; retain its diagnostic, never mark it green.
-            return {'ok': False, 'exit_code': getattr(exc, 'exit_code', None),
+            return {'ok': False, 'error_type': type(exc).__name__, 'exit_code': getattr(exc, 'exit_code', None),
                     'stdout': str(getattr(exc, 'stdout', ''))[-MAX_OUTPUT:],
                     'stderr': str(getattr(exc, 'stderr', '') or str(exc))[-MAX_OUTPUT:]}
 
@@ -80,7 +80,7 @@ class WorkspaceTools:
 
         @tool
         async def execute_command(command: str) -> dict:
-            """Run a bounded shell command in the project. The dev server is already running: never start it again. Use only concrete diagnostic needs; do not install relative paths as packages."""
+            """Run a bounded shell command in the project for concrete diagnostics or requested skill discovery. The dev server is already running: never start it again. Do not install relative paths as packages."""
             if len(command) > 2000:
                 raise ValueError('Command is too long')
             if re.search(r'npm\s+(?:i|install)\s+(?:\.{1,2})(?:\s|$)', command):
