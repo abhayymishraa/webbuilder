@@ -1,0 +1,12 @@
+{
+  "repository": "vercel-labs/skills",
+  "commit": "d667282815248da03a08a18272b5d2eef9caf77c",
+  "files": {
+    "find-skills/SKILL.md": "c00eeea0e13e74fe4a9d84ba0a8542205a1b736d65f13134fe1a6647eb14976f",
+    "find-skills/LICENSE": "661142e53c313d2bb5e1b055f5c0a39001450ff1b5e27b89dc4bc7de9a6352ca"
+  },
+  "upstream_git_blobs": {
+    "find-skills/SKILL.md": "a41bdd074bb587afd861332cf2f473f3154de4d7",
+    "find-skills/LICENSE": "eabe3008f6c0275929faa8b07d406e82717648cc"
+  }
+}
