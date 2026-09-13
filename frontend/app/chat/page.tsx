@@ -1,7 +1,7 @@
 "use client";
 
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, chatApi, type UserData } from "@/api";
 import Link from "next/link";
@@ -17,27 +17,31 @@ export default function ChatPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const router = useRouter();
+  const initialDraft = useRef<string | null>(null);
 
   useEffect(() => {
     // Check if user is authenticated
     const token = localStorage.getItem("auth_token");
 
 
-    try {
-      const explicitStarter = new URLSearchParams(window.location.search).get("starter");
-      const draft = sessionStorage.getItem(PROJECT_DRAFT_KEY);
-      const requested = explicitStarter || sessionStorage.getItem("webbuilder-starter");
-      const starter = starterBriefs.find((item) => item.id === requested);
-      if (draft?.trim() && !(explicitStarter && starter)) {
-        setInput(draft.slice(0, MAX_PROJECT_DRAFT_LENGTH));
-      } else if (starter) {
-        setInput(starter.prompt);
-        sessionStorage.removeItem(PROJECT_DRAFT_KEY);
-        if (token) sessionStorage.removeItem("webbuilder-starter");
-        else sessionStorage.setItem("webbuilder-starter", starter.id);
+    if (initialDraft.current === null) {
+      try {
+        initialDraft.current = "";
+        const explicitStarter = new URLSearchParams(window.location.search).get("starter");
+        const draft = sessionStorage.getItem(PROJECT_DRAFT_KEY);
+        const requested = explicitStarter || sessionStorage.getItem("webbuilder-starter");
+        const starter = starterBriefs.find((item) => item.id === requested);
+        if (draft?.trim() && !(explicitStarter && starter)) {
+          initialDraft.current = draft.slice(0, MAX_PROJECT_DRAFT_LENGTH);
+        } else if (starter) {
+          initialDraft.current = starter.prompt;
+          sessionStorage.removeItem(PROJECT_DRAFT_KEY);
+          if (token) sessionStorage.removeItem("webbuilder-starter");
+          else sessionStorage.setItem("webbuilder-starter", starter.id);
+        }
+      } catch {
+        /* A starter is optional when session storage is unavailable. */
       }
-    } catch {
-      /* A starter is optional when session storage is unavailable. */
     }
 
     if (!token) {
@@ -49,6 +53,7 @@ export default function ChatPage() {
     authApi.getCurrentUser().then((user) => {
       if (disposed) return;
       localStorage.setItem("user_data", JSON.stringify(user));
+      setInput((current) => current || initialDraft.current || "");
       setUserData(user);
       setIsAuthenticated(true);
     }).catch(() => {

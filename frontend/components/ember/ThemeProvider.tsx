@@ -1,28 +1,53 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 
 const ThemeContext = createContext({ light: false, toggle: () => {} });
+const themeKey = "webbuilder-theme";
+const themeChanged = "webbuilder-theme-changed";
+let fallbackLight: boolean | null = null;
+
+function getTheme() {
+  if (fallbackLight !== null) return fallbackLight;
+  try {
+    return localStorage.getItem(themeKey) === "light";
+  } catch {
+    return false;
+  }
+}
+
+function subscribeTheme(notify: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === themeKey || event.key === null) {
+      fallbackLight = null;
+      notify();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(themeChanged, notify);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(themeChanged, notify);
+  };
+}
+
+function getServerTheme() { return false; }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [light, setLight] = useState(false);
+  const light = useSyncExternalStore(subscribeTheme, getTheme, getServerTheme);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("webbuilder-theme") === "light";
-      setLight(saved);
-      document.documentElement.dataset.theme = saved ? "light" : "dark";
-    } catch {
-      /* The default theme also works without browser storage. */
-    }
-  }, []);
+    document.documentElement.dataset.theme = light ? "light" : "dark";
+  }, [light]);
   const toggle = () => {
     const next = !light;
-    setLight(next);
-    document.documentElement.dataset.theme = next ? "light" : "dark";
     try {
-      localStorage.setItem("webbuilder-theme", next ? "light" : "dark");
-    } catch {}
+      localStorage.setItem(themeKey, next ? "light" : "dark");
+      fallbackLight = null;
+    } catch {
+      fallbackLight = next;
+    }
+    window.dispatchEvent(new Event(themeChanged));
   };
   return (
     <ThemeContext.Provider value={{ light, toggle }}>

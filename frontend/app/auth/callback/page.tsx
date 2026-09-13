@@ -27,9 +27,10 @@ export default function OAuthCallbackPage() {
       const ticket = params.get("ticket");
       callbackError.current = params.get("error") || (!ticket ? "oauth_failed" : "");
       window.history.replaceState(null, "", window.location.pathname);
-      if (ticket && !callbackError.current) exchange.current = authApi.exchangeOAuth(ticket);
+      exchange.current = ticket && !callbackError.current
+        ? authApi.exchangeOAuth(ticket)
+        : Promise.reject(new Error("OAuth callback rejected"));
     }
-    if (callbackError.current) setError(errors[callbackError.current] || errors.oauth_failed);
     exchange.current?.then(async session => {
       if (disposed) return;
       localStorage.setItem("auth_token", session.access_token);
@@ -38,7 +39,7 @@ export default function OAuthCallbackPage() {
       if (disposed) return;
       localStorage.setItem("user_data", JSON.stringify(user));
       router.replace("/chat");
-    }).catch(() => { if (!disposed) setError(errors.oauth_failed); });
+    }).catch(() => { if (!disposed) setError(errors[callbackError.current] || errors.oauth_failed); });
     return () => { disposed = true; };
   }, [router]);
   return <AuthFrame title="Connecting your account" description="We’re getting your workspace ready.">

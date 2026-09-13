@@ -46,8 +46,6 @@ export function ProjectCollection({
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let disposed = false;
-    setLoading(true);
-    setError("");
     chatApi
       .listProjects()
       .then((response) => {
@@ -92,7 +90,11 @@ export function ProjectCollection({
           <p role="alert">{error}</p>
           <button
             className="ember-button ember-secondary"
-            onClick={() => setAttempt((value) => value + 1)}
+            onClick={() => {
+              setLoading(true);
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
           >
             Try again
           </button>

@@ -49,7 +49,8 @@ apiClient.interceptors.response.use(
 
       // Redirect to signin if not already there
       if (!window.location.pathname.includes("/signin")) {
-        window.location.href = "/signin";
+          // Reset the document after clearing authentication, including cached account state.
+          window.location.replace("/signin");
       }
     }
 

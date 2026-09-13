@@ -21,7 +21,6 @@ export default function ProjectsPage() {
       return;
     }
     let disposed = false;
-    setReady(true);
     authApi
       .getCurrentUser()
       .then((data) => {
@@ -29,6 +28,9 @@ export default function ProjectsPage() {
       })
       .catch(() => {
         /* The API client handles an expired session. */
+      })
+      .finally(() => {
+        if (!disposed) setReady(true);
       });
     return () => {
       disposed = true;

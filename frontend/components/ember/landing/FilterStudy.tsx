@@ -2,6 +2,7 @@
 
 import { useId, useState, type CSSProperties } from "react";
 import { ArrowRight, RotateCcw } from "lucide-react";
+import Image from "next/image";
 import styles from "./studies.module.css";
 
 const ideas = [
@@ -24,7 +25,7 @@ function CowPreview() {
         </button>
         <p className={styles.miniGreeting} role="status">{greeted ? "Moo! Thanks for stopping by." : "A little portfolio. A lot of personality."}</p>
       </div>
-      <img className={`${styles.previewPart} ${styles.cowPhoto}`} src="/landing/cow-portrait.jpg" alt="Clover, a brown and white cow looking at the camera" width={480} height={560} />
+      <Image className={`${styles.previewPart} ${styles.cowPhoto}`} src="/landing/cow-portrait.jpg" alt="Clover, a brown and white cow looking at the camera" width={480} height={560} sizes="(max-width: 640px) 45vw, 240px" />
     </div>
   </div>;
 }

@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
+  experimental: {
+    // Cached production compilations have reused the retired global stylesheet.
+    turbopackFileSystemCacheForBuild: false,
+  },
 };
 
 export default nextConfig;

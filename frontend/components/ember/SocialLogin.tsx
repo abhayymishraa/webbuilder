@@ -29,7 +29,7 @@ export function SocialLogin({ onOptions, registration = false }: { onOptions?: (
     <div>
       {(["google", "github"] as const).map(provider => <button type="button" key={provider}
         className="ember-button ember-secondary" disabled={!options?.providers[provider]}
-        onClick={() => { window.location.href = `${API_BASE_URL}/auth/oauth/${provider}`; }}>
+        onClick={() => { window.location.assign(new URL(`${API_BASE_URL}/auth/oauth/${provider}`, window.location.origin).href); }}>
         {provider === "google" ? <SiGoogle aria-hidden="true" /> : <SiGithub aria-hidden="true" />}
         {provider === "google" ? "Google" : "GitHub"}
       </button>)}

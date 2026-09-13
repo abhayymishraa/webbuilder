@@ -75,44 +75,9 @@ function formatContent(content: string) {
 function JsonBlock({ content }: { content: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(content);
-    const formatted = JSON.stringify(parsed, null, 2);
-    const lines = formatted.split("\n");
-    const preview = lines.slice(0, 3).join("\n");
-
-    // Try to extract a title from the JSON
-    const title =
-      parsed.planTitle || parsed.title || parsed.name || "Implementation Plan";
-
-    return (
-      <div className="my-3 border border-border rounded-lg overflow-hidden bg-card">
-        <button
-          aria-expanded={isExpanded}
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent transition-colors text-xs"
-        >
-          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <Code2 size={14} />
-          <span className="text-secondary-foreground font-medium">{title}</span>
-          <span className="text-muted-foreground text-[10px] ml-auto">
-            {lines.length} lines •{" "}
-            {isExpanded ? "Click to collapse" : "Click to expand"}
-          </span>
-        </button>
-        {isExpanded && (
-          <pre className="p-3 text-[11px] leading-relaxed font-mono text-secondary-foreground overflow-x-auto max-h-96 overflow-y-auto">
-            {formatted}
-          </pre>
-        )}
-        {!isExpanded && (
-          <pre className="p-3 text-[11px] leading-relaxed font-mono text-muted-foreground">
-            {preview}
-            <span className="text-muted-foreground">...</span>
-          </pre>
-        )}
-      </div>
-    );
+    parsed = JSON.parse(content);
   } catch {
     return (
       <pre className="my-3 p-3 text-xs font-mono text-muted-foreground bg-card border border-border rounded-lg overflow-x-auto">
@@ -120,6 +85,44 @@ function JsonBlock({ content }: { content: string }) {
       </pre>
     );
   }
+  const formatted = JSON.stringify(parsed, null, 2) ?? content;
+  const lines = formatted.split("\n");
+  const preview = lines.slice(0, 3).join("\n");
+  const fields = parsed !== null && typeof parsed === "object"
+    ? parsed as Record<string, unknown>
+    : null;
+  const title = [fields?.planTitle, fields?.title, fields?.name].find(
+    (value): value is string => typeof value === "string" && value.length > 0,
+  ) ?? "Implementation Plan";
+
+  return (
+    <div className="my-3 border border-border rounded-lg overflow-hidden bg-card">
+      <button
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent transition-colors text-xs"
+      >
+        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <Code2 size={14} />
+        <span className="text-secondary-foreground font-medium">{title}</span>
+        <span className="text-muted-foreground text-[10px] ml-auto">
+          {lines.length} lines •{" "}
+          {isExpanded ? "Click to collapse" : "Click to expand"}
+        </span>
+      </button>
+      {isExpanded && (
+        <pre className="p-3 text-[11px] leading-relaxed font-mono text-secondary-foreground overflow-x-auto max-h-96 overflow-y-auto">
+          {formatted}
+        </pre>
+      )}
+      {!isExpanded && (
+        <pre className="p-3 text-[11px] leading-relaxed font-mono text-muted-foreground">
+          {preview}
+          <span className="text-muted-foreground">...</span>
+        </pre>
+      )}
+    </div>
+  );
 }
 
 function CodeBlock({ content, lang }: { content: string; lang?: string }) {
