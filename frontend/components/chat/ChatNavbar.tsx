@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FolderOpen, LogOut, Plus } from "lucide-react";
+import { FolderOpen, LogOut, Plus, UserRound } from "lucide-react";
 import type { UserData } from "@/api";
 import { Brand } from "@/components/ember/Brand";
 import { ThemeToggle } from "@/components/ember/ThemeProvider";
@@ -22,10 +22,11 @@ export function ChatNavbar({
         <ThemeToggle />
         {isAuthenticated ? (
           <>
-            <Link href="/projects" className="ember-text-link">
+            <Link href="/projects" className="ember-text-link ember-projects-link" aria-label="Projects">
               <FolderOpen size={16} />
-              Projects
+              <span>Projects</span>
             </Link>
+            <Link href="/profile" className="ember-icon" aria-label="Your profile"><UserRound size={18} /></Link>
             <div className="ember-account">
               {userData && (
                 <>

@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { BookOpen, FolderOpen, Plus } from "lucide-react";
+import { BookOpen, FolderOpen, Plus, UserRound } from "lucide-react";
 
 export function WorkspaceSidebar({
   current,
 }: {
-  current: "new" | "projects" | "builder";
+  current: "new" | "projects" | "builder" | "profile";
 }) {
   return (
     <aside className="ember-workspace-sidebar">
@@ -27,6 +27,7 @@ export function WorkspaceSidebar({
           <Plus size={17} />
           Write a brief
         </Link>
+        <Link href="/profile" aria-current={current === "profile" ? "page" : undefined}><UserRound size={17} />Profile</Link>
         <Link href="/#how-it-works">
           <BookOpen size={17} />
           How it works

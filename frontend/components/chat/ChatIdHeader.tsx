@@ -1,4 +1,5 @@
-import { ChevronLeft, Eye, EyeOff, Plus } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, Eye, EyeOff, Plus, UserRound } from "lucide-react";
 import type { UserData } from "@/api";
 import { Brand } from "@/components/ember/Brand";
 import { ThemeToggle } from "@/components/ember/ThemeProvider";
@@ -42,6 +43,7 @@ export function ChatIdHeader({
             </>
           )}
         </div>
+        <Link href="/profile" className="ember-icon" aria-label="Your profile"><UserRound size={18} /></Link>
         <ThemeToggle />
         <ProjectsList />
         <button

@@ -1033,3 +1033,79 @@ html:has(:focus-visible) [data-slot="sheet-content"],
 html:has(:focus-visible) [data-slot="sheet-overlay"] {
   animation: none;
 }
+
+/* Account surfaces share the workspace's Ember palette. */
+.ember-social-login { margin-top: 24px; }
+.ember-social-login > div { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ember-social-login .ember-helper { margin-top: 14px; line-height: 1.5; }
+.ember-profile { width: 100%; min-width: 0; max-width: 1100px; margin-inline: auto; padding: 38px clamp(20px, 4vw, 56px); }
+.ember-profile-heading { margin-bottom: 26px; }
+.ember-profile-heading h1 { font-size: clamp(28px, 3vw, 36px); letter-spacing: -1.3px; font-weight: 500; margin: 6px 0; }
+.ember-profile-heading > p:last-child, .ember-profile-settings section > p { font-size: 14px; line-height: 1.6; color: var(--muted-foreground); }
+.ember-profile-card { position: relative; isolation: isolate; overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: var(--card); padding: 34px; min-height: 290px; }
+.ember-profile-mountain { position: absolute; inset: 0; z-index: -1; background: url('/art/profile-mountain.svg') right center / auto 100% no-repeat; mask-image: linear-gradient(90deg, transparent 18%, #000 80%); opacity: .85; }
+.ember-profile-identity { max-width: 72%; }
+.ember-profile-avatar { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: var(--background); border: 1px solid var(--border); color: var(--accent-foreground); font-size: 20px; margin-bottom: 16px; }
+.ember-profile-identity h2 { font-size: 25px; letter-spacing: -.6px; font-weight: 500; overflow-wrap: anywhere; }
+.ember-profile-identity > p { color: var(--muted-foreground); margin: 5px 0 13px; line-height: 1.5; font-size: 14px; overflow-wrap: anywhere; }
+.ember-profile-email { display: flex; align-items: center; gap: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.ember-profile-email svg { flex-shrink: 0; }
+.ember-profile-facts { display: flex; flex-wrap: wrap; gap: 14px 24px; margin-top: 23px; font-size: 12px; color: var(--muted-foreground); }
+.ember-profile-facts > span { display: inline-flex; align-items: center; gap: 5px; }
+.ember-profile-facts strong { color: var(--foreground); font-weight: 500; }
+.ember-credit-reset { font-variant-numeric: tabular-nums; }
+.ember-credit-reset svg { flex-shrink: 0; }
+.ember-profile-settings { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 64px); margin-top: 36px; }
+.ember-profile-settings section { min-width: 0; }
+.ember-profile-settings h2 { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+.ember-profile-settings .ember-form { margin-top: 22px; gap: 18px; }
+.ember-profile-settings textarea { resize: vertical; min-height: 96px; max-height: 220px; padding: 12px; background: var(--card); border: 1px solid var(--input); border-radius: 8px; font-size: 16px; }
+.ember-profile-settings .ember-form button { align-self: start; }
+.ember-profile-methods { margin-top: 18px; }
+.ember-profile-methods > div { display: flex; align-items: center; gap: 13px; min-height: 75px; border-bottom: 1px solid var(--border); }
+.ember-profile-methods > div > svg { flex-shrink: 0; }
+.ember-profile-methods span { flex: 1; font-size: 14px; }
+.ember-profile-methods small { display: block; color: var(--muted-foreground); font-size: 12px; margin-top: 4px; }
+.ember-profile-methods button { padding: 10px 14px; }
+.ember-profile-joined { margin-top: 25px; font-size: 12px !important; }
+.ember-profile-status { min-height: 24px; margin-top: 20px; color: var(--accent-foreground); font-size: 14px; }
+.ember-profile-loading { padding-block: 40px; }
+
+/* The new-chat page owns one viewport; only its content scrolls on very short screens. */
+.ember-chat-home { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.ember-chat-home > .ember-workspace-header { flex: 0 0 auto; }
+.ember-chat-home .ember-workspace-shell { flex: 1; min-height: 0; overflow: hidden; }
+.ember-chat-home .ember-workspace { height: 100%; margin-block: 0; min-width: 0; min-height: 0; overflow-y: auto; padding: clamp(20px, 5dvh, 48px) clamp(20px, 4vw, 48px); }
+.ember-chat-home .ember-workspace-intro { margin-bottom: clamp(16px, 3dvh, 28px); }
+.ember-chat-home .ember-page-title h1 { font-size: clamp(30px, 5dvh, 48px); line-height: 1.1; }
+.ember-chat-home .ember-composer textarea { resize: none; max-height: 140px; font-size: 16px; }
+.ember-chat-home .ember-starter-list { margin-top: 20px; }
+.ember-chat-home .ember-workspace-note { margin-top: 24px; padding-top: 18px; }
+@media (max-width: 767px) {
+  .ember-profile { padding: 24px 18px; }
+  .ember-profile-card { padding: 24px; min-height: 290px; }
+  .ember-profile-identity { max-width: 100%; }
+  .ember-profile-mountain { opacity: .45; mask-image: linear-gradient(180deg, #000, transparent 85%); }
+  .ember-profile-settings { grid-template-columns: 1fr; gap: 32px; }
+  .ember-workspace-header .ember-row { gap: 8px; }
+  .ember-chat-home .ember-starter-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .ember-chat-home .ember-starter-list button { display: flex; flex-direction: column; align-items: flex-start; padding: 12px 8px; gap: 6px; }
+  .ember-chat-home .ember-starter-list button span { display: none; }
+  .ember-chat-home .ember-starter-list strong { font-size: 12px; overflow-wrap: normal; }
+  .ember-chat-home .ember-workspace-note { flex-wrap: wrap; gap: 8px; font-size: 12px; }
+}
+@media (max-height: 700px) {
+  .ember-chat-home .ember-workspace { padding-block: 16px; }
+  .ember-chat-home .ember-starter-list { margin-top: 14px; }
+  .ember-chat-home .ember-workspace-intro { margin-bottom: 15px; }
+  .ember-chat-home .ember-starter-list button span, .ember-chat-home .ember-workspace-note { display: none; }
+  .ember-chat-home .ember-starter-list button { padding: 12px; }
+}
+@media (max-width: 380px) {
+  .ember-workspace-header { gap: 8px; padding-inline: 12px; }
+  .ember-projects-link span { display: none; }
+  .ember-projects-link { min-width: 36px; min-height: 40px; justify-content: center; }
+}
+@media (max-width: 767px) {
+  .ember-chat-home .ember-composer textarea { height: clamp(75px, 12dvh, 110px); }
+}

@@ -21,7 +21,7 @@ export default function ChatPage() {
   useEffect(() => {
     // Check if user is authenticated
     const token = localStorage.getItem("auth_token");
-    const user = localStorage.getItem("user_data");
+
 
     try {
       const explicitStarter = new URLSearchParams(window.location.search).get("starter");
@@ -45,31 +45,17 @@ export default function ChatPage() {
       return;
     }
 
-    setIsAuthenticated(true);
+    let disposed = false;
+    authApi.getCurrentUser().then((user) => {
+      if (disposed) return;
+      localStorage.setItem("user_data", JSON.stringify(user));
+      setUserData(user);
+      setIsAuthenticated(true);
+    }).catch(() => {
+      if (!disposed) setError("Could not load your account. Refresh to try again.");
+    });
+    return () => { disposed = true; };
 
-    if (user) {
-      try {
-        const parsed: UserData = JSON.parse(user);
-        setUserData(parsed);
-
-        // Fetch fresh user data from API to get updated token count
-        authApi
-          .getCurrentUser()
-          .then((freshData) => {
-            console.log("Refreshed user data:", freshData);
-            const updatedUser = { ...parsed, ...freshData };
-            localStorage.setItem("user_data", JSON.stringify(updatedUser));
-            setUserData(updatedUser);
-          })
-          .catch((err) => {
-            console.error("Failed to fetch fresh user data:", err);
-          });
-      } catch (err) {
-        console.warn("Invalid user_data in localStorage, clearing.", err);
-        localStorage.removeItem("user_data");
-        // Don't clear token here as it might still be valid
-      }
-    }
   }, [router]);
 
   const handleSignOut = () => {
@@ -103,7 +89,7 @@ export default function ChatPage() {
   };
 
   return (
-    <>
+    <div className="ember-chat-home">
       <ChatNavbar
         isAuthenticated={isAuthenticated}
         userData={userData}
@@ -162,6 +148,6 @@ export default function ChatPage() {
           </div>
         </main>
       </div>
-    </>
+    </div>
   );
 }
