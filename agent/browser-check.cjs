@@ -15,6 +15,8 @@ const { chromium } = require('/opt/webbuilder-checks/node_modules/playwright');
       if (await page.locator('vite-error-overlay').count()) errors.push('Vite error overlay');
       const rendered = await page.locator('#root').evaluate(el => el.childElementCount > 0 && el.getBoundingClientRect().height > 0);
       if (!rendered) errors.push('React root did not render');
+      const text = (await page.locator('#root').innerText()).trim().replace(/\s+/g, ' ');
+      if (text === 'Ready to build') errors.push('Preview still shows the untouched starter page');
       await page.close();
     }
     console.log(JSON.stringify({ ok: errors.length === 0, errors: errors.slice(0, 10), checks: ['desktop render', 'mobile render', 'uncaught browser errors'] }));

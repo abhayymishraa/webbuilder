@@ -44,6 +44,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
+      - name: Run offline preview lifecycle regressions
+        run: docker run --rm -v "$PWD/sandbox/tests:/preview-tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m unittest discover -s /preview-tests -v
       - name: Report absent backend tests
         if: ${{ hashFiles('tests/**/test_*.py') == '' }}
         run: echo "::notice::No backend tests found; skipping regression steps."

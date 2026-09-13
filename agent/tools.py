@@ -33,6 +33,7 @@ class WorkspaceTools:
         self.sandbox = sandbox
         self.cache: dict[str, str] = {}
         self.revision = 0
+        self.preview_revision = 0
 
     async def read(self, path: str) -> str:
         path = project_path(path)

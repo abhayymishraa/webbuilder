@@ -14,8 +14,9 @@ from sqlalchemy import select, update, func
 
 from db.base import AsyncSessionLocal
 from db.models import Chat, Message, Run, RunEvent, User
-from .runner import run_editor, RunLimitError, VerificationError, SandboxSetupError
-from .tools import ROOT
+from .runner import run_editor, check_browser, RunLimitError, VerificationError, SandboxSetupError
+from .tools import ROOT, WorkspaceTools
+from .preview import control_preview, PreviewError
 from .persistence import archive_slots, ensure_revision, latest_revision, revision_bytes, sandbox_archive, save_revision
 from .storage import StorageError
 from .events import redact, run_events
@@ -208,17 +209,21 @@ class Service:
         except Exception:
             raise SandboxSetupError('Sandbox archive tools are unavailable. Rebuild sandbox/Dockerfile with Python 3.11 or later. No model request was made.') from None
         if revision:
+            # Stop watchers before replacing their source tree or dependencies.
+            await control_preview(sandbox, 'stop')
             async with archive_slots:
                 await sandbox_archive(sandbox, 'restore', await revision_bytes(revision))
             if 'package-lock.json' not in revision.manifest:
                 raise StorageError('Saved project needs package-lock.json before preview can be restored')
             await sandbox.commands.run('npm ci --ignore-scripts --no-audit --no-fund', cwd=ROOT, timeout=90)
+            await control_preview(sandbox, 'start')
         return sandbox
 
     async def preview_ready(self, sandbox):
-        # The template owns the dev server. Never start a second server on resume.
         await sandbox.commands.run('curl --fail --silent --retry 5 --retry-connrefused '
             '--retry-delay 2 --max-time 5 http://localhost:5173/ >/dev/null', cwd=ROOT, timeout=45)
+        if not (await check_browser(WorkspaceTools(sandbox)))['ok']:
+            raise PreviewError('Saved preview did not pass browser checks')
 
     async def save_files(self, live):
         if not live.sandbox:
@@ -253,11 +258,12 @@ class Service:
                     await self.preview_ready(sandbox)
                 except Exception:
                     row = await self.runtimes.get(chat_id)
-                    # A full resume may cold-boot on provider fallback. Restore once;
-                    # do not repeatedly rebuild a newly restored, unhealthy preview.
-                    if not row or not row.reusable or not await self.retire_sandbox(chat_id):
+                    if not row or not row.reusable:
+                        # A restored project has already received a fresh server.
                         raise
-                    sandbox = await self.get_e2b_sandbox(chat_id)
+                    # Repair the server in the same sandbox before considering a
+                    # future open/restore. Do not allocate a VM for a module cache.
+                    await control_preview(sandbox, 'restart')
                     await self.preview_ready(sandbox)
                 url = 'https://' + sandbox.get_host(5173)
                 async with AsyncSessionLocal.begin() as db:
@@ -324,7 +330,7 @@ class Service:
         except asyncio.CancelledError:
             status = 'interrupted' if self.stopping else 'cancelled'
             reason = 'Server stopped; submit a new request to continue.' if self.stopping else 'Stopped at your request. The last acknowledged checkpoint remains available.'
-        except (RunLimitError, VerificationError, ContextError) as exc:
+        except (RunLimitError, VerificationError, ContextError, PreviewError) as exc:
             reason = str(exc)
             live.metrics['error_type'] = type(exc).__name__
         except StorageError as exc:

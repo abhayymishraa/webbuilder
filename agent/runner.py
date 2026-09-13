@@ -12,6 +12,7 @@ from .tools import WorkspaceTools, list_files
 from .context import CONTEXT_RULES, choose_files
 from .skills import RuntimeSkills
 from .public_tools import encode_public, public_tool_details, preflight_failure
+from .preview import control_preview
 
 
 class RunLimitError(Exception):
@@ -37,6 +38,11 @@ async def verify(workspace: WorkspaceTools) -> dict:
     build = await workspace.command('npm run build', timeout=90)
     if not build['ok']:
         return {'ok': False, 'build': build, 'browser': {'checked': False}}
+    if workspace.preview_revision != workspace.revision:
+        # Flush server-side module state after the complete edit, not every file.
+        # Infrastructure failures escape the model repair loop.
+        await control_preview(workspace.sandbox, 'restart')
+        workspace.preview_revision = workspace.revision
     browser = await check_browser(workspace)
     return {'ok': browser['ok'], 'build': build, 'browser': browser}
 

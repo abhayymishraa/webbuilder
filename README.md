@@ -102,6 +102,38 @@ available; building this template does not delete them.
 The verified template built on 12 September 2026 is `xjklh0xbjh3wpgu0w306`.
 Older templates without Chromium cannot pass the new browser gate.
 
+### Preview synchronization
+
+Vite continues to serve the live app on port 5173 with HMR. After a successful
+build of edited files, the backend replaces the project's Vite process once,
+then checks the actual page at desktop and mobile sizes. This clears stale
+server-side modules without regenerating code or creating another sandbox.
+The browser check rejects the untouched `Ready to build` starter; passing it
+is a smoke check, not proof that every requested feature was implemented.
+
+Saved-file restoration stops Vite before replacing source files and installing
+dependencies, then starts it once. Healthy unchanged resumes do not restart it.
+An unhealthy reused preview gets one restart attempt in the same sandbox.
+Failures preserve durable saved revisions and do not trigger AI repair calls
+for server startup errors. A restart briefly interrupts the preview and resets
+its in-memory UI state.
+
+The host controller recognizes the existing template's Vite command and the
+replacement process by project directory, executable, and explicit port. It
+uses a sandbox-local lock and Linux process handles, never a public restart
+endpoint or a broad `pkill`. Unknown port owners are not killed. No polling or
+blanket dependency-cache deletion is enabled. The helper ships with the backend
+and runs outside the archived source tree, so compatible existing templates
+do not need rebuilding for this change.
+
+Run the offline lifecycle regressions with:
+
+```bash
+uv run python -m unittest discover -s sandbox/tests -v
+```
+
+The backend deployment workflow runs these checks before deployment as well.
+
 OpenAI and E2B usage have their own billing or free-credit limits. Free frontend
 and VM hosting do not make AI generation free.
 
