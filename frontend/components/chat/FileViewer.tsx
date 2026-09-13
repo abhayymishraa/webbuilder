@@ -174,6 +174,17 @@ function FileTreeNode({
   );
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
 export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
@@ -211,14 +222,7 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
         `/projects/${projectId}/files/${encodeURIComponent(selectedFile)}?raw=true&${revisionQuery}`,
         { responseType: "blob" },
       );
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = selectedFile.split("/").pop() || "file.txt";
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      downloadBlob(blob, selectedFile.split("/").pop() || "file.txt");
     } catch (error) {
       console.error("Failed to download file:", error);
     }
@@ -234,15 +238,7 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
         },
       );
 
-      const blob = response.data as Blob;
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${projectId}-files.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      downloadBlob(response.data, `${projectId}-files.zip`);
     } catch (error) {
       console.error("Failed to download all files:", error);
     } finally {
