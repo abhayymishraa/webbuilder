@@ -2,8 +2,7 @@
 .form > label { display: block; font-size: 14px; color: var(--secondary-foreground); margin-bottom: 14px; }
 .composer { position: relative; isolation: isolate; border: 1px solid var(--input); border-radius: 12px; background: var(--card); box-shadow: 0 18px 65px #ff61290a; }
 .composer:focus-within { outline: 2px solid var(--ring); outline-offset: 4px; }
-.beam { position: absolute; z-index: -1; pointer-events: none; top: 0; left: 20px; width: calc(100% - 20px); height: 165px; background: conic-gradient(from 62deg at 0% 50%, transparent, #ff61292b 12deg, #ff946e85 28deg, #ff61291a 46deg, transparent 56deg); mask-image: linear-gradient(90deg, #000, transparent 90%); filter: blur(12px); opacity: .2; transition: opacity 180ms ease; }
-.composer:focus-within .beam { opacity: .5; }
+.composer:focus-within .shine { opacity: .8; animation-play-state: running; }
 .composer textarea { display: block; width: 100%; min-height: 112px; max-height: 260px; padding: 18px; resize: vertical; field-sizing: content; background: transparent; border: 0; border-radius: 12px; color: var(--foreground); font-size: 16px; line-height: 1.5; caret-color: var(--accent-foreground); }
 .composer textarea::placeholder { color: var(--muted-foreground); opacity: 1; }
 .composer textarea:focus-visible { outline: none; }

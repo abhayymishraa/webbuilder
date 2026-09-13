@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { ShineBorder } from "@/components/ui/shine-border";
 import { MAX_PROJECT_DRAFT_LENGTH, PROJECT_DRAFT_KEY } from "@/lib/project-draft";
 import styles from "./hero-prompt.module.css";
 
@@ -29,7 +30,7 @@ export function HeroPrompt() {
     }}>
       <label htmlFor="landing-project-brief">What would you like to build?</label>
       <div className={styles.composer}>
-        <div className={styles.beam} aria-hidden="true" />
+        <ShineBorder className={styles.shine} />
         <textarea
           id="landing-project-brief"
           name="prompt"
