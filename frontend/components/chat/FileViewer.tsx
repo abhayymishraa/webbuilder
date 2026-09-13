@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import {
   FileCode,
@@ -16,6 +16,7 @@ import apiClient from "@/api/client";
 interface FileViewerProps {
   files: string[];
   projectId: string;
+  revisionId?: string | null;
 }
 
 interface FileNode {
@@ -173,38 +174,43 @@ function FileTreeNode({
   );
 }
 
-export function FileViewer({ files, projectId }: FileViewerProps) {
+export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const fileTree = buildFileTree(files);
+  const [binary, setBinary] = useState(false);
+  const requestNumber = useRef(0);
+  const revisionQuery = revisionId ? `revision_id=${encodeURIComponent(revisionId)}` : "";
 
-  const fetchFileContent = async (filePath: string) => {
+  useEffect(() => {
+    const request = ++requestNumber.current;
+    if (!selectedFile) return;
     setIsLoadingFile(true);
-    try {
-      const response = await apiClient.get<{ content: string }>(
-        `/projects/${projectId}/files/${encodeURIComponent(filePath)}`,
-      );
-      setFileContent(response.data.content);
-    } catch (error) {
-      console.error("Failed to fetch file content:", error);
-      setFileContent("// Error loading file content");
-    } finally {
-      setIsLoadingFile(false);
-    }
-  };
-
-  const handleSelectFile = (filePath: string) => {
-    setSelectedFile(filePath);
-    fetchFileContent(filePath);
-  };
+    setBinary(false);
+    apiClient.get<{ content: string | null; binary: boolean }>(
+      `/projects/${projectId}/files/${encodeURIComponent(selectedFile)}?${revisionQuery}`,
+    ).then(({ data }) => {
+      if (request !== requestNumber.current) return;
+      setBinary(data.binary);
+      setFileContent(data.content ?? "");
+    }).catch(() => {
+      if (request === requestNumber.current) setFileContent("Saved file could not be loaded. Try again.");
+    }).finally(() => {
+      if (request === requestNumber.current) setIsLoadingFile(false);
+    });
+    return () => { requestNumber.current += 1; };
+  }, [projectId, selectedFile, revisionQuery]);
 
   const handleDownloadFile = async () => {
     if (!selectedFile) return;
 
     try {
-      const blob = new Blob([fileContent], { type: "text/plain" });
+      const { data: blob } = await apiClient.get<Blob>(
+        `/projects/${projectId}/files/${encodeURIComponent(selectedFile)}?raw=true&${revisionQuery}`,
+        { responseType: "blob" },
+      );
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -222,7 +228,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
     setIsDownloading(true);
     try {
       const response = await apiClient.get<Blob>(
-        `/projects/${projectId}/download`,
+        `/projects/${projectId}/download?${revisionQuery}`,
         {
           responseType: "blob",
         },
@@ -246,13 +252,14 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
 
   // Auto-select first file
   useEffect(() => {
-    if (files.length > 0 && !selectedFile) {
+    if (!files.length) { setSelectedFile(null); return; }
+    if (!selectedFile || !files.includes(selectedFile)) {
       const firstFile =
         files.find((f) => !f.includes("/") || f.split("/").length === 1) ||
         files[0];
-      handleSelectFile(firstFile);
+      setSelectedFile(firstFile);
     }
-  }, [files]);
+  }, [files, selectedFile]);
 
   if (files.length === 0) {
     return (
@@ -295,7 +302,7 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
             <FileTreeNode
               key={node.path}
               node={node}
-              onSelectFile={handleSelectFile}
+              onSelectFile={setSelectedFile}
               selectedFile={selectedFile}
             />
           ))}
@@ -329,6 +336,8 @@ export function FileViewer({ files, projectId }: FileViewerProps) {
                 <div className="absolute inset-0 flex items-center justify-center bg-card">
                   <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
+              ) : binary ? (
+                <div className="p-6 text-sm text-muted-foreground">Binary or large file. Download to view the original.</div>
               ) : (
                 <Editor
                   height="100%"

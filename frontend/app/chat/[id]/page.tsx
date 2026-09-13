@@ -29,6 +29,7 @@ export default function ChatIdPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [appUrl, setAppUrl] = useState<string | null>(null);
+  const [revisionId, setRevisionId] = useState<string | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
   const [previewWidth, setPreviewWidth] = useState(50);
@@ -64,72 +65,25 @@ export default function ChatIdPage() {
     loadInitialData();
   }, []);
 
-  // Function to fetch project files
-  const fetchProjectFiles = async () => {
-    // Check if we're in a browser environment
-    if (typeof window === "undefined") {
-      console.log("Not in browser environment, skipping file fetch");
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("auth_token");
-      if (!token) {
-        console.log("No auth token available for fetching files");
-        return;
-      }
-
-      console.log("📁 Fetching project files for:", chatId);
-
-      const response = await apiClient.get<{
-        project_id: string;
-        files: string[];
-        sandbox_id: string;
-        sandbox_active: boolean;
-      }>(`/projects/${chatId}/files`);
-
-      console.log(
-        "Files fetched successfully:",
-        response.data.files?.length || 0,
-        "files",
-      );
-      setProjectFiles(response.data.files || []);
-    } catch (error) {
-      console.error("Error fetching files:", error);
-      if (error instanceof Error) {
-        console.error("Error message:", error.message);
-      }
-    }
-  };
-
-  // Fetch files when appUrl becomes available
+  // Saved files stay accessible after the sandbox expires. Poll metadata only during a run.
   useEffect(() => {
-    // Only run in browser environment
-    if (typeof window === "undefined") {
-      console.log("Not in browser, skipping file fetch setup");
-      return;
-    }
-
-    if (appUrl && chatId) {
-      // Delay initial fetch to ensure everything is ready
-      const initialTimeout = setTimeout(() => {
-        fetchProjectFiles();
-      }, 1000);
-
-      // Refetch files every 10 seconds while building
-      const interval = setInterval(() => {
-        if (isBuilding) {
-          fetchProjectFiles();
+    if (!chatId) return;
+    let disposed = false;
+    let requestNumber = 0;
+    const loadFiles = async () => {
+      const request = ++requestNumber;
+      try {
+        const { data } = await apiClient.get<{ files: string[]; revision_id: string | null }>(`/projects/${chatId}/files`);
+        if (!disposed && request === requestNumber) {
+          setProjectFiles(data.files);
+          setRevisionId(data.revision_id);
         }
-      }, 10000);
-
-      return () => {
-        clearTimeout(initialTimeout);
-        clearInterval(interval);
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appUrl, isBuilding, chatId]);
+      } catch { /* Keep the last readable checkpoint during a temporary outage. */ }
+    };
+    void loadFiles();
+    const timer = isBuilding ? setInterval(() => { void loadFiles(); }, 10000) : undefined;
+    return () => { disposed = true; if (timer) clearInterval(timer); };
+  }, [chatId, isBuilding]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
@@ -466,6 +420,9 @@ export default function ChatIdPage() {
                 appUrl={appUrl}
                 previewWidth={previewWidth}
                 files={projectFiles}
+                revisionId={revisionId}
+                isBuilding={isBuilding}
+                onPreviewOpen={setAppUrl}
                 projectId={chatId}
               />
             </>

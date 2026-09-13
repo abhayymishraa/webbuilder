@@ -8,14 +8,18 @@ import {
   Tablet,
   RotateCcw,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileViewer } from "./FileViewer";
+import apiClient from "@/api/client";
 
 interface PreviewPanelProps {
   appUrl: string | null;
   previewWidth: number;
   files: string[];
   projectId: string;
+  revisionId?: string | null;
+  isBuilding?: boolean;
+  onPreviewOpen?: (url: string | null) => void;
 }
 type TabType = "preview" | "files";
 
@@ -24,10 +28,49 @@ export function PreviewPanel({
   previewWidth,
   files,
   projectId,
+  revisionId,
+  isBuilding,
+  onPreviewOpen,
 }: PreviewPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>("preview");
   const [viewport, setViewport] = useState("desktop");
   const [refresh, setRefresh] = useState(0);
+  const [opening, setOpening] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewRequest = useRef(0);
+  useEffect(() => {
+    previewRequest.current += 1;
+    setOpening(false);
+    setPreviewError(null);
+    return () => { previewRequest.current += 1; };
+  }, [projectId]);
+  useEffect(() => {
+    if (!appUrl || isBuilding) return;
+    let disposed = false;
+    const check = async () => {
+      try {
+        const { data } = await apiClient.get<{ state: string }>(`/projects/${projectId}/preview`);
+        if (!disposed && data.state === "sleeping") onPreviewOpen?.(null);
+      } catch { /* A transient status failure does not discard a visible preview. */ }
+    };
+    void check();
+    const timer = setInterval(() => { void check(); }, 60000);
+    return () => { disposed = true; clearInterval(timer); };
+  }, [appUrl, projectId, isBuilding, onPreviewOpen]);
+  const openPreview = async () => {
+    if (opening || isBuilding) return;
+    setOpening(true);
+    setPreviewError(null);
+    const request = ++previewRequest.current;
+    try {
+      const { data } = await apiClient.post<{ url: string }>(`/projects/${projectId}/preview`, undefined, { timeout: 200000 });
+      if (request !== previewRequest.current) return;
+      onPreviewOpen?.(data.url);
+      setRefresh(value => value + 1);
+    } catch {
+      if (request === previewRequest.current) setPreviewError("Preview could not start. Your saved files are still available.");
+    } finally { if (request === previewRequest.current) setOpening(false); }
+  };
   return (
     <section
       className="ember-preview"
@@ -116,22 +159,27 @@ export function PreviewPanel({
           ) : (
             <div className="ember-empty">
               <Eye size={34} />
-              <h2>Your canvas is ready.</h2>
+              <h2>{revisionId ? "Your preview is sleeping." : "Your canvas is ready."}</h2>
               <p>
-                The app preview will appear when your build makes it available.
+                {revisionId ? "Your files are saved. Open a temporary preview to continue exploring." : "The app preview will appear when your build makes it available."}
               </p>
+              {revisionId && <button className="ember-button" disabled={opening || isBuilding} onClick={openPreview}>
+                {opening ? "Opening preview…" : "Open preview"}
+              </button>}
+              {revisionId && <small>Starts sandbox compute. No AI request or generation credit.</small>}
+              {previewError && <p role="alert">{previewError}</p>}
             </div>
           )}
         </div>
       ) : (
         <div className="ember-preview-files">
-          <FileViewer key={projectId} files={files} projectId={projectId} />
+          <FileViewer key={projectId} files={files} projectId={projectId} revisionId={revisionId} />
         </div>
       )}
       <div className="ember-preview-caption">
         {activeTab === "preview"
           ? "Live app preview · Source available in Files"
-          : "Read your source or download the project ZIP"}
+          : "Saved source and assets · App databases need their own backups"}
       </div>
     </section>
   );
