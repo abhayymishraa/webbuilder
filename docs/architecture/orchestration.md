@@ -69,12 +69,13 @@ provider request does not promise refunding tokens already generated.
 
 ## Persistence and observation
 
-`runs` is additive: prompt, status, bounded JSON events, metrics, reason and timestamps.
-At most 200 activity events plus one terminal event are retained per run. Events stream
-immediately and are checkpointed at model/stage boundaries; a crash can lose events
-after the last checkpoint. Final state, event log, chat preview URL and final message
-commit together before completion is broadcast. Startup and snapshots reconcile
-orphaned `running` records to `interrupted`. There is no automatic resume.
+`runs` stores summaries, metrics and outcomes. Ordered `run_events` are committed
+before publication, with at most 200 activity events plus one terminal event.
+Completed mutating tool batches save immutable source revisions before another
+model turn. Final run state, terminal event, verified revision pointer, preview URL
+and message commit together. Startup marks orphaned runs interrupted; it never
+automatically resumes model work. See [persistence setup](../persistence-setup.md)
+for recovery boundaries, retention, migration and verification status.
 
 The WebSocket history snapshot includes the latest 200 messages and 10 runs.
 Older terminal messages remain in chat history, subject to that message window.
@@ -99,12 +100,12 @@ Stage names and tool/check success flags also appear in backend logs. E2B SDK
 failures get a sandbox-specific terminal message; raw provider exception text
 is not copied into that message.
 
-Source snapshots use `projects/<chat>/files/<relative path>` with version-2 metadata.
-Legacy flat snapshots are readable. Individual files and metadata are replaced
-atomically, but a whole snapshot is not a transactional filesystem revision. Partial
-save failures can leave a mixed snapshot. Binary assets and oversized source files
-are not archived. Downloads currently require an active sandbox. Preview URLs expire
-with the sandbox; restoring source for another request creates a new preview.
+Source revisions include binary assets in private GCS/MinIO ZIPs. Owned file APIs
+read the saved revision without a sandbox. Legacy local snapshots are imported
+lazily, preserving originals. Preview compute is reopened explicitly; its expiry
+does not erase source. The [original proposal](persistence-proposal.md) records the
+research and council tradeoffs; [setup and limits](../persistence-setup.md) describe
+the implementation.
 
 ## Verification and evidence
 

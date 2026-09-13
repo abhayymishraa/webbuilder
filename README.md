@@ -10,6 +10,10 @@ See [orchestration, limits, and verification](docs/architecture/orchestration.md
 the [original audit](docs/research/2026-09-12-orchestration-audit.md), and the
 [LLM Council decision](docs/council/council-transcript-2026-09-12-orchestration.md).
 
+Project history retrieval and optional summaries are described in
+[context and memory](docs/context-memory.md). Retrieval uses the existing database;
+automatic compaction is disabled pending quality evaluation.
+
 ## Production
 
 - Frontend: https://webbuilder.abhayymishraa.us (Vercel)
@@ -23,7 +27,7 @@ The VM runs only the backend container, persistent project files, and Caddy.
 
 ## Local development
 
-Docker Compose runs only PostgreSQL. The frontend and backend run on your machine.
+Docker Compose runs only PostgreSQL and local MinIO. The frontend and backend run on your machine.
 Requires Docker Compose v2, Python 3.12+, uv, Node.js 22+, and make.
 
 For a fresh checkout, copy `.env.example` to `.env` and
@@ -36,8 +40,8 @@ Install dependencies once with `uv sync` and `npm --prefix frontend ci`.
 Run these commands from the repository root:
 
 ```bash
-# Dependency: PostgreSQL on localhost:5432; waits until ready.
-docker compose up -d --wait
+# Dependencies: PostgreSQL on :5432 and MinIO on :9000/:9001.
+docker compose up -d --build --wait
 ```
 
 ```bash
@@ -50,8 +54,8 @@ make backend
 make frontend
 ```
 
-`make backend` creates missing database tables before starting Uvicorn with
-reload. Existing-column changes still require explicit migrations. This is a
+`make backend` runs the database migration and initializes the private local
+MinIO bucket before starting Uvicorn with reload. This is a
 fresh local database; it does not contain your production accounts or projects.
 Open http://localhost:3000 and create a local account. AI generation still uses
 the configured OpenAI and E2B services.
@@ -64,14 +68,16 @@ calling the model and stops with a setup error if it is unavailable.
 After changing `.env`, stop and restart `make backend`; Uvicorn source reload
 does not reload the environment inherited from `uv run`.
 
-Stop each app with Ctrl+C. Stop PostgreSQL with `docker compose down`; its named
-volume preserves data. Run `docker compose logs -f postgres` for database logs.
-The production stack remains in `deploy/compose.yaml`.
+Stop each app with Ctrl+C. Stop dependencies with `docker compose down`; their
+named volumes preserve data. Run `docker compose logs -f postgres` for database logs.
+The production stack remains in `deploy/compose.yaml`. See
+[project persistence setup](docs/persistence-setup.md) for GCS, retention, recovery
+and verification status. Set a private `MINIO_SECRET_KEY` when creating `.env`.
 
 ## E2B template
 
 The sandbox contains Node, React, React Router, React Icons, Vite, Tailwind CSS,
-and Playwright with headless Chromium. Its server starts on port 5173. No OpenAI or database
+Python for binary-safe archives, and Playwright with headless Chromium. Its server starts on port 5173. No OpenAI or database
 credentials are copied into the sandbox template.
 
 With the E2B CLI authenticated, build from its separate directory:
