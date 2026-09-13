@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, JSONResponse
 from pydantic import BaseModel
 import asyncio
 from anyio import CancelScope
@@ -10,11 +10,15 @@ import io
 import zipfile
 from fastapi import Depends
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, delete
 from agent.service import agent_service
-from agent.tools import list_files, project_path
+from agent.archive import safe_path
+from agent.persistence import archive_slots, ensure_revision, revision_bytes, read_object
+from agent.storage import StorageError
+from agent.events import run_events
 from auth.router import router
-from db.models import User, Chat, Message, Run
+from auth.social import social_router, configure_sessions
+from db.models import User, Chat, Message, Run, ProjectRevision, StorageDeletion
 from auth.dependencies import get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.base import get_db, AsyncSessionLocal, engine
@@ -51,7 +55,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+configure_sessions(app)
 app.include_router(router=router)
+app.include_router(social_router)
 
 
 
@@ -135,9 +141,11 @@ async def owned_chat(id: str, user: User, db: AsyncSession):
 
 
 @app.get("/chats/{id}/runs")
-async def get_runs(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_runs(id: str, offset: int = 0, limit: int = 10, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await owned_chat(id, current_user, db)
-    return {"runs": await agent_service.snapshot(id)}
+    if offset < 0 or not 1 <= limit <= 50:
+        raise HTTPException(422, 'Invalid history page')
+    return {"runs": await agent_service.snapshot(id, offset, limit)}
 
 
 @app.post("/runs/{run_id}/cancel")
@@ -150,104 +158,133 @@ async def cancel_run(run_id: str, current_user: User = Depends(get_current_user)
     return {"runs": await agent_service.snapshot(run.chat_id)}
 
 
+@app.exception_handler(StorageError)
+async def storage_error_handler(request, exc):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
 @app.get("/projects/{id}/files")
 async def get_project_files(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await owned_chat(id, current_user, db)
-    sandbox = agent_service.sandboxes.get(id)
-    if not sandbox:
-        raise HTTPException(
-            status_code=404, detail="Project sandbox not found or not active."
-        )
-
-    try:
-        files = await list_files(sandbox)
-
-        return {
-            "project_id": id,
-            "files": files,
-            "sandbox_id": sandbox.sandbox_id,
-            "sandbox_active": True,
-        }
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to parse file list: {str(e)}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching files: {str(e)}"
-        )
+    revision = await ensure_revision(id)
+    return {"project_id": id, "files": list(revision.manifest) if revision else [],
+            "revision_id": revision.id if revision else None,
+            "sandbox_active": id in agent_service.sandboxes}
 
 
 @app.get("/projects/{id}/files/{file_path:path}")
-async def get_file_content(id: str, file_path: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def get_file_content(id: str, file_path: str, raw: bool = False, revision_id: str | None = None,
+                           current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await owned_chat(id, current_user, db)
     try:
-        file_path = project_path(file_path)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from None
-    """Get the content of a specific file from the project"""
-    sandbox = agent_service.sandboxes.get(id)
-    if not sandbox:
-        raise HTTPException(
-            status_code=404, detail="Project sandbox not found or not active."
-        )
-
+        file_path = safe_path(file_path)
+    except ValueError:
+        raise HTTPException(422, "Invalid project path") from None
+    revision = await saved_revision(id, revision_id, db)
+    if file_path not in revision.manifest:
+        raise HTTPException(404, "File not found in saved revision")
+    async with archive_slots:
+        data = await revision_bytes(revision)
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            content = archive.read(file_path)
+    if raw:
+        from urllib.parse import quote
+        return Response(content, media_type="application/octet-stream",
+            headers={"Content-Disposition": "attachment; filename*=UTF-8''" + quote(file_path.split('/')[-1]),
+                     "X-Content-Type-Options": "nosniff", "Cache-Control": "private, no-store"})
     try:
-        full_path = f"/home/user/react-app/{file_path}"
-        content = await sandbox.files.read(full_path)
-        
-        return {
-            "file_path": file_path,
-            "content": content,
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error reading file: {str(e)}"
-        )
+        text_content = content.decode('utf-8') if len(content) <= 200_000 and b'\x00' not in content else None
+    except UnicodeDecodeError:
+        text_content = None
+    return {"file_path": file_path, "content": text_content, "binary": text_content is None,
+            "size": len(content), "revision_id": revision.id}
+
+
+async def saved_revision(chat_id, revision_id, db):
+    revision = await db.scalar(select(ProjectRevision).where(ProjectRevision.id == revision_id,
+        ProjectRevision.chat_id == chat_id, ProjectRevision.status == 'ready')) if revision_id else await ensure_revision(chat_id)
+    if not revision:
+        raise HTTPException(404, "No saved revision available")
+    return revision
 
 
 @app.get("/projects/{id}/download")
-async def download_all_files(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def download_all_files(id: str, revision_id: str | None = None,
+                             current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await owned_chat(id, current_user, db)
-    """Download all project files as a ZIP archive"""
-    sandbox = agent_service.sandboxes.get(id)
-    if not sandbox:
-        raise HTTPException(
-            status_code=404, detail="Project sandbox not found or not active."
-        )
+    revision = await saved_revision(id, revision_id, db)
+    async with archive_slots:
+        data = await revision_bytes(revision)
+    return Response(data, media_type="application/zip", headers={
+        "Content-Disposition": f"attachment; filename={id}-project.zip", "Cache-Control": "private, no-store"})
 
+
+@app.get("/projects/{id}/revisions")
+async def get_revisions(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    chat = await owned_chat(id, current_user, db)
+    rows = (await db.scalars(select(ProjectRevision).where(ProjectRevision.chat_id == id,
+        ProjectRevision.status == 'ready').order_by(ProjectRevision.created_at.desc()).limit(50))).all()
+    return {"latest_saved_revision_id": chat.latest_saved_revision_id,
+            "latest_verified_revision_id": chat.latest_verified_revision_id,
+            "revisions": [{"id": r.id, "run_id": r.run_id, "created_at": r.created_at,
+                           "size_bytes": r.size_bytes, "file_count": len(r.manifest)} for r in rows]}
+
+
+@app.get("/runs/{run_id}/events")
+async def get_run_events(run_id: str, after_sequence: int = 0,
+                         current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    run = await db.get(Run, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    await owned_chat(run.chat_id, current_user, db)
+    if after_sequence < 0:
+        raise HTTPException(422, "Invalid event cursor")
+    events = await run_events(db, run_id, after_sequence)
+    return {"events": events, "status": run.status, "reason": run.reason,
+            "next_sequence": events[-1].get('sequence', after_sequence) if events else after_sequence,
+            "detail_retention_days": 14, "event_retention_days": 30}
+
+
+@app.post("/projects/{id}/preview")
+async def open_project_preview(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await owned_chat(id, current_user, db)
     try:
-        files = await list_files(sandbox)
-        
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for file_path in files:
-                try:
-                    full_path = f"/home/user/react-app/{file_path}"
-                    content = await sandbox.files.read(full_path)
-                    zip_file.writestr(file_path, content)
-                except Exception as e:
-                    print(f"Failed to add {file_path} to ZIP: {e}")
-                    continue
-        
-        zip_buffer.seek(0)
-        
-        return StreamingResponse(
-            zip_buffer,
-            media_type="application/zip",
-            headers={
-                "Content-Disposition": f"attachment; filename={id}-project.zip"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error creating ZIP: {str(e)}"
-        )
+        return await agent_service.open_preview(id)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(503, "Preview could not start. Saved files are still available; retry opening the preview.") from None
+
+
+@app.get("/runs/{run_id}/logs")
+async def get_run_logs(run_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    import hashlib
+    run = await db.get(Run, run_id)
+    if not run:
+        raise HTTPException(404, "Run not found")
+    await owned_chat(run.chat_id, current_user, db)
+    if not run.log_key:
+        raise HTTPException(410 if run.log_sha256 else 404, "Detailed archive expired or is not available yet")
+    async with archive_slots:
+        data = await read_object(run.log_key, 1024 * 1024)
+    if hashlib.sha256(data).hexdigest() != run.log_sha256:
+        raise StorageError('Run log archive failed integrity checks')
+    return Response(data, media_type="application/gzip", headers={
+        "Content-Disposition": f"attachment; filename={run_id}-activity.jsonl.gz", "Cache-Control": "private, no-store"})
+
+
+@app.get("/projects/{id}/preview")
+async def get_preview_status(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    chat = await owned_chat(id, current_user, db)
+    sandbox = agent_service.sandboxes.get(id)
+    if sandbox:
+        try:
+            if await sandbox.is_running(request_timeout=5):
+                return {"url": chat.app_url, "state": "active"}
+        except Exception:
+            raise HTTPException(503, "Preview status temporarily unavailable") from None
+        agent_service.sandboxes.pop(id, None)
+    return {"url": None, "state": "sleeping"}
 
 
 @app.get("/projects")
@@ -265,6 +302,28 @@ async def list_user_projects(
     }
 
 
+@app.delete("/projects/{id}")
+async def delete_project(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    async with agent_service.admission:
+        await owned_chat(id, current_user, db)
+        if id in agent_service.opening or any(r.chat_id == id for r in agent_service.active.values()):
+            raise HTTPException(409, 'Stop the active operation before deleting this project')
+        keys = list((await db.scalars(select(ProjectRevision.object_key).where(ProjectRevision.chat_id == id))).all())
+        keys += [f'logs/{run_id}.jsonl.gz' for run_id in (await db.scalars(select(Run.id).where(Run.chat_id == id))).all()]
+        keys.append(f'legacy/{id}')
+        for key in keys:
+            db.add(StorageDeletion(object_key=key))
+        await db.execute(delete(Chat).where(Chat.id == id))
+        await db.commit()  # Revoke owned access before asynchronous object cleanup.
+        sandbox = agent_service.sandboxes.pop(id, None)
+    if sandbox:
+        try:
+            await asyncio.wait_for(sandbox.kill(), timeout=10)
+        except Exception:
+            pass
+    return {'deleted': True, 'storage_cleanup': 'queued'}
+
+
 @app.websocket("/ws/{id}")
 async def ws_listener(websocket: WebSocket, id: str):
     # Authenticate in the first frame: bearer tokens never enter URLs or access logs.
@@ -280,7 +339,8 @@ async def ws_listener(websocket: WebSocket, id: str):
             return
         async with AsyncSessionLocal() as db:
             chat = await db.scalar(select(Chat).where(Chat.id == id, Chat.user_id == int(payload["sub"])))
-            if not chat:
+            user = await db.get(User, int(payload["sub"]))
+            if not chat or not user or (not user.email_verified):
                 await websocket.close(code=1008)
                 return
     except (ValueError, TimeoutError, WebSocketDisconnect):
@@ -299,7 +359,7 @@ async def ws_listener(websocket: WebSocket, id: str):
             history = [{"id": m.id, "role": m.role, "content": m.content,
                         "event_type": m.event_type, "tool_calls": m.tool_calls,
                         "created_at": m.created_at.isoformat()} for m in messages]
-            app_url = chat.app_url
+            app_url = chat.app_url if id in agent_service.sandboxes else None
         await websocket.send_json({"type": "history", "messages": history,
                                    "app_url": app_url, "runs": await agent_service.snapshot(id)})
 

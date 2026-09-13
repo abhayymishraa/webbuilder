@@ -16,9 +16,19 @@ class RunAPITests(unittest.TestCase):
         from db.base import engine
         self.assertIn('webbuilder_test', engine.url.database)
         self.service = agent_service
-        async def blocked(*args): await asyncio.Future()
+        self.storage_config = patch.dict(os.environ, {'STORAGE_PROVIDER': 'minio', 'STORAGE_BUCKET': 'test',
+            'MINIO_ENDPOINT': 'http://127.0.0.1:9000', 'MINIO_ACCESS_KEY': 'local-test', 'MINIO_SECRET_KEY': 'local-test-only'})
+        async def no_housekeeping(service): await asyncio.Future()
+        self.housekeeping = patch('agent.maintenance.maintain_loop', new=no_housekeeping)
+        self.storage_config.start(); self.housekeeping.start()
+        async def blocked(*args, **kwargs): await asyncio.Future()
         self.runner = patch('agent.service.run_editor', new=blocked)
         self.sandbox = patch.object(agent_service, 'get_e2b_sandbox', new=AsyncMock(return_value=FakeSandbox()))
+        async def verify_fixture(db, user, ip):
+            user.email_verified = True
+        self.mail = patch('auth.router.send_verification', new=verify_fixture)
+        self.email_config = patch('auth.router.email_configured', return_value=True)
+        self.mail.start(); self.email_config.start()
         self.runner.start(); self.sandbox.start()
         self.client = TestClient(app).__enter__()
         import uuid
@@ -31,6 +41,8 @@ class RunAPITests(unittest.TestCase):
     def tearDown(self):
         self.client.__exit__(None, None, None)
         self.sandbox.stop(); self.runner.stop()
+        self.mail.stop(); self.email_config.stop()
+        self.storage_config.stop(); self.housekeeping.stop()
 
     def test_disconnect_preserves_run_cancel_is_durable_and_rejected_request_free(self):
         r = self.client.post('/chat', json={'prompt': 'A counter'}, headers=self.headers)

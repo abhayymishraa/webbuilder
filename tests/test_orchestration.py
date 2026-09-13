@@ -96,7 +96,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(sandbox.commands.run.call_args.args[0].endswith(' --preflight'))
 
     async def test_sandbox_failure_has_safe_actionable_terminal_reason(self):
-        service = Service()
+        service = Service(); service.emit = AsyncMock()
         live = LiveRun('run', 'chat', 'portfolio')
         sandbox = FakeSandbox()
         service.get_e2b_sandbox = AsyncMock(return_value=sandbox)
@@ -132,11 +132,11 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(complete[0].kwargs['call_id'], 'bad-call')
 
     async def test_cancel_kills_sandbox_and_persists_terminal(self):
-        service = Service(); live = LiveRun('run', 'chat', 'counter'); sandbox = FakeSandbox()
+        service = Service(); service.emit = AsyncMock(); live = LiveRun('run', 'chat', 'counter'); sandbox = FakeSandbox()
         service.get_e2b_sandbox = AsyncMock(return_value=sandbox)
         service.finish = AsyncMock(); service.save_files = AsyncMock()
         entered = asyncio.Event()
-        async def blocked(*args): entered.set(); await asyncio.Future()
+        async def blocked(*args, **kwargs): entered.set(); await asyncio.Future()
         with patch('agent.service.run_editor', new=blocked):
             service.active[live.id] = live
             live.task = asyncio.create_task(service.execute(live))
@@ -147,13 +147,13 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(live.id, service.active)
 
     async def test_slow_subscriber_does_not_block_run(self):
-        service = Service(); queue = asyncio.Queue(maxsize=1)
+        service = Service(); service.emit = AsyncMock(); queue = asyncio.Queue(maxsize=1)
         service.subscribers['chat'] = {queue}
         service.publish('chat', {'e': 'one'}); service.publish('chat', {'e': 'two'})
         self.assertEqual(queue.get_nowait()['e'], 'resync')
 
     async def test_cancel_before_task_starts_still_finishes(self):
-        service = Service(); live = LiveRun('run', 'chat', 'counter')
+        service = Service(); service.emit = AsyncMock(); live = LiveRun('run', 'chat', 'counter')
         service.finish = AsyncMock()
         service.active[live.id] = live
         live.task = asyncio.create_task(service.execute(live))
@@ -162,7 +162,7 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(service.active)
 
     async def test_cancel_during_restore_kills_registered_sandbox(self):
-        service = Service(); live = LiveRun('run', 'chat', 'counter'); sandbox = FakeSandbox()
+        service = Service(); service.emit = AsyncMock(); live = LiveRun('run', 'chat', 'counter'); sandbox = FakeSandbox()
         service.finish = AsyncMock(); entered = asyncio.Event()
         async def restoring(chat_id):
             service.sandboxes[chat_id] = sandbox
@@ -176,10 +176,10 @@ class RunnerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(service.sandboxes)
 
     async def test_timeout_kills_external_work_and_records_terminal_state(self):
-        service = Service(); live = LiveRun('run', 'chat', 'counter'); sandbox = FakeSandbox()
+        service = Service(); service.emit = AsyncMock(); live = LiveRun('run', 'chat', 'counter'); sandbox = FakeSandbox()
         service.get_e2b_sandbox = AsyncMock(return_value=sandbox)
         service.finish = AsyncMock()
-        async def blocked(*args): await asyncio.Future()
+        async def blocked(*args, **kwargs): await asyncio.Future()
         with patch.dict('os.environ', {'RUN_TIMEOUT_SECONDS': '1'}), patch('agent.service.run_editor', new=blocked):
             await service.execute(live)
         sandbox.kill.assert_awaited_once()
