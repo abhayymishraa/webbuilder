@@ -47,3 +47,17 @@ test('replayed completion cannot clear a newer active run', () => {
   assert.equal(building, true);
   assert.equal(runId, 'new-run');
 });
+
+test('structured live results and persisted replay render the same tool with stable references', () => {
+  const details = { version: 1, kind: 'write_files', changed_files: ['src/App.jsx'], file_count: 1, ok: true };
+  const events = [event('tool_started', 'start', { call_id: 'call', details: { version: 1, paths: ['src/App.jsx'] } }),
+    event('tool_completed', 'end', { call_id: 'call', ok: true, details, output: JSON.stringify(details) }),
+    event('run_finished', 'done', { status: 'succeeded', message: 'Finished' })];
+  const live = events.reduce(applyRunEvent, [] as Message[]);
+  const replay = restoreRuns([], [{ id: 'run', status: 'succeeded', events }]);
+  assert.deepEqual(live, replay);
+  assert.equal(replay[0].tool_calls?.[0].event_id, 'end');
+  assert.equal(replay[0].tool_calls?.[0].run_id, 'run');
+  assert.deepEqual(replay[0].tool_calls?.[0].details, details);
+  assert.equal(restoreRuns(replay, [{ id: 'run', status: 'succeeded', events }])[0].tool_calls?.length, 1);
+});

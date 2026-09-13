@@ -4,23 +4,44 @@ export function applyRunEvent(messages: Message[], event: RunEvent): Message[] {
   if (!event.run_id) return messages;
   const id = `run:${event.run_id}`;
   const existing = messages.find(m => m.id === id);
-  const message: Message = existing ? { ...existing, tool_calls: [...(existing.tool_calls || [])] } : {
-    id, role: 'assistant', content: '', created_at: event.created_at, event_type: 'run', tool_calls: [],
-  };
+  const activityId = event.e === 'stage' || event.e === 'verification'
+    ? event.event_id || `${event.e}:${event.created_at}:${event.message}`
+    : undefined;
+  if (activityId !== undefined && existing?.activity?.some(item => item.id === activityId)) {
+    return messages;
+  }
+  let toolIndex = -1;
   if (event.e === 'tool_started' || event.e === 'tool_completed') {
     if (!event.call_id) return messages;
+    toolIndex = existing?.tool_calls?.findIndex(call => call.id === event.call_id) ?? -1;
+    // A replayed start must not replace a tool that has already returned a result.
+    if (event.e === 'tool_started' && toolIndex >= 0) {
+      return messages;
+    }
+  }
+  const message: Message = existing ? { ...existing, activity: [...(existing.activity || [])], tool_calls: [...(existing.tool_calls || [])] } : {
+    id, role: 'assistant', content: '', created_at: event.created_at, event_type: 'run', tool_calls: [],
+    activity: [], run_status: 'running',
+  };
+  const activity = message.activity!;
+  if (event.e === 'tool_started' || event.e === 'tool_completed') {
     const calls = message.tool_calls!;
-    const index = calls.findIndex(call => call.id === event.call_id);
-    // A delayed start must never resurrect a completed call.
-    if (event.e === 'tool_started' && index >= 0) return messages;
     const call = { id: event.call_id, name: event.name || 'Tool',
       status: event.e === 'tool_started' ? 'running' as const : event.ok ? 'success' as const : 'error' as const,
-      output: event.output, duration_ms: event.duration_ms };
-    if (index < 0) calls.push(call); else calls[index] = call;
+      output: event.output, details: event.details, duration_ms: event.duration_ms,
+      run_id: event.run_id, event_id: event.event_id };
+    if (toolIndex < 0) calls.push(call); else calls[toolIndex] = call;
+  } else if (event.e === 'stage' || event.e === 'verification') {
+    activity.push({
+      id: activityId!, kind: event.e, created_at: event.created_at,
+      message: event.message, ok: event.ok, checks: event.checks,
+    });
   } else if (event.message) {
     message.content = event.message;
   }
   if (event.e === 'run_finished') {
+    message.run_status = event.status || 'interrupted';
+    message.finished_at = event.created_at;
     message.tool_calls = message.tool_calls?.map(call => call.status === 'running'
       ? { ...call, status: 'error', output: 'Run ended before this operation completed.' } : call);
   }
@@ -31,10 +52,14 @@ export function restoreRuns(messages: Message[], runs: RunSnapshot[]): Message[]
   let result = messages;
   for (const run of runs) {
     for (const event of run.events) result = applyRunEvent(result, event);
-    if (run.status !== 'running') result = applyRunEvent(result, {
-      e: 'run_finished', run_id: run.id, event_id: `${run.id}:terminal`, created_at: run.created_at || run.events[0]?.created_at || new Date(0).toISOString(),
+    if (run.status !== 'running' && !run.events.some(event => event.e === 'run_finished')) {
+      result = applyRunEvent(result, {
+      e: 'run_finished', run_id: run.id, event_id: `${run.id}:terminal`, created_at: run.events.at(-1)?.created_at || run.created_at || new Date(0).toISOString(),
       status: run.status, message: run.reason || `Run ${run.status}`,
-    });
+      });
+      // A terminal snapshot without its event has no trustworthy completion time.
+      result = result.map(message => message.id === `run:${run.id}` ? { ...message, finished_at: undefined } : message);
+    }
   }
   return result.sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
 }
@@ -52,8 +77,8 @@ export function handleWebSocketMessage(event: MessageEvent, handlers: WebSocketH
       handlers.setRunId(active?.id || null);
       handlers.setIsBuilding(Boolean(active));
       handlers.setAppUrl(data.app_url || null);
-      const last = runs.at(-1);
-      handlers.setError(last && last.status !== 'running' && last.status !== 'succeeded' ? last.reason || `Run ${last.status}` : null);
+      // Run failures belong to their inline run card; this banner is for transport errors.
+      handlers.setError(null);
       return;
     }
     if (!data.run_id) return;
@@ -67,7 +92,7 @@ export function handleWebSocketMessage(event: MessageEvent, handlers: WebSocketH
       handlers.terminalRuns.add(data.run_id);
       handlers.setRunId(null);
       handlers.setIsBuilding(false);
-      handlers.setError(data.status === 'succeeded' ? null : data.message);
+      handlers.setError(null);
       if (data.status === 'succeeded' && data.url) handlers.setAppUrl(data.url);
       else handlers.setAppUrl(null);
     }

@@ -5,6 +5,17 @@ export interface ToolCall {
   status: 'success' | 'error' | 'running';
   output?: string;
   duration_ms?: number;
+  details?: unknown;
+  run_id?: string;
+  event_id?: string;
+}
+export interface ActivityItem {
+  id: string;
+  kind: 'stage' | 'verification';
+  created_at: string;
+  message?: string;
+  ok?: boolean;
+  checks?: unknown;
 }
 export interface Message {
   id: string;
@@ -13,6 +24,9 @@ export interface Message {
   created_at: string;
   event_type?: string;
   tool_calls?: ToolCall[];
+  activity?: ActivityItem[];
+  run_status?: RunStatus;
+  finished_at?: string;
 }
 export interface RunEvent {
   e: string;
@@ -25,8 +39,10 @@ export interface RunEvent {
   status?: RunStatus;
   message?: string;
   output?: string;
+  details?: unknown;
   duration_ms?: number;
   url?: string | null;
+  checks?: unknown;
 }
 export interface RunSnapshot {
   id: string;
