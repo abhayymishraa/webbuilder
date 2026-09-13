@@ -78,10 +78,3 @@ export function consolidateMessages(msgs: Message[]): Message[] {
 
   return consolidated;
 }
-
-/**
- * Gets all tool calls from message history
- */
-export function getAllToolCalls(messages: Message[]) {
-  return messages.flatMap((msg) => msg.tool_calls ?? []);
-}

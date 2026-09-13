@@ -2,7 +2,6 @@ export { ChatNavbar } from "./ChatNavbar";
 export { ChatInputBox } from "./ChatInputBox";
 export { ChatIdHeader } from "./ChatIdHeader";
 export { MessageBubble } from "./MessageBubble";
-export { ToolCallsDropdown } from "./ToolCallsDropdown";
 export { PreviewPanel } from "./PreviewPanel";
 export { ChatInput } from "./ChatInput";
 export { FileViewer } from "./FileViewer";

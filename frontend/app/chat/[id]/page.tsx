@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Code2, Loader2, Plus } from "lucide-react";
+import { Code2, Loader2 } from "lucide-react";
 import type { UserData } from "@/api";
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
 import { WS_URL } from "@/lib/utils";
@@ -10,13 +10,13 @@ import apiClient from "@/api/client";
 import {
   ChatIdHeader,
   MessageBubble,
-  ToolCallsDropdown,
   PreviewPanel,
   ChatInput,
 } from "@/components/chat";
-import { consolidateMessages, getAllToolCalls } from "@/lib/chat-utils";
+import { consolidateMessages } from "@/lib/chat-utils";
 import { handleWebSocketMessage } from "@/lib/websocket-handlers";
 import type { Message } from "@/lib/chat-types";
+import transcriptStyles from "@/components/chat/transcript.module.css";
 import { usePreviewLifecycle } from "@/lib/use-preview-lifecycle";
 
 export default function ChatIdPage() {
@@ -41,8 +41,6 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
   const [isDragging, setIsDragging] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [showAllToolsDropdown, setShowAllToolsDropdown] = useState(true);
-  const [activeTab, setActiveTab] = useState("conversation");
   const [mobilePane, setMobilePane] = useState("chat");
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
   const [previewTab, setPreviewTab] = useState<"preview" | "files">("preview");
@@ -67,6 +65,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
 
   const wsRef = useRef<WebSocket | null>(null);
   const terminalRuns = useRef(new Set<string>());
+  const followLatest = useRef(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLElement>(null);
 
@@ -110,8 +109,8 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
   }, [chatId, isBuilding]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [messages, activeTab, mobilePane]);
+    if (followLatest.current) messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [messages, mobilePane]);
 
   // Handle drag resize
   useEffect(() => {
@@ -225,7 +224,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
     if (!prompt || isBuilding) return;
     setIsBuilding(true);
     setError(null);
-    setActiveTab("conversation");
+    followLatest.current = true;
     try {
       const { data } = await apiClient.post<{
         run_id: string;
@@ -265,7 +264,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
   // Frame and composer layout adapted from Beautiful UI ChatComposer (MIT).
   // Keep transport, durable run ownership and message consolidation in this page.
   return (
-    <div className="ember-builder">
+    <div className={`ember-builder ${transcriptStyles.workspace}`}>
       <ChatIdHeader
         userData={userData}
         showPreview={showPreview}
@@ -312,38 +311,11 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
             aria-label="Project conversation"
             style={{ width: showPreview ? `${100 - previewWidth}%` : "100%" }}
           >
-            <div className="ember-conversation-toolbar">
-              <div
-                className="ember-row"
-                role="group"
-                aria-label="Conversation views"
-              >
-                <button
-                  className="ember-tab"
-                  aria-pressed={activeTab === "conversation"}
-                  onClick={() => setActiveTab("conversation")}
-                >
-                  Conversation
-                </button>
-                <button
-                  className="ember-tab"
-                  aria-pressed={activeTab === "activity"}
-                  onClick={() => setActiveTab("activity")}
-                >
-                  Activity
-                  {getAllToolCalls(messages).length > 0 &&
-                    ` (${getAllToolCalls(messages).length})`}
-                </button>
-              </div>
-              <button
-                className="ember-icon"
-                onClick={() => router.push("/chat")}
-                aria-label="New project"
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-            <div className="ember-message-scroll">
+            <div className="ember-conversation-toolbar"><span className="ember-helper">Conversation</span></div>
+            <div className="ember-message-scroll" onScroll={event => {
+              const element = event.currentTarget;
+              followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 100;
+            }}>
               {isLoading && (
                 <div className="ember-row ember-helper" role="status">
                   <Loader2 size={18} className="animate-spin" />
@@ -355,55 +327,28 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
                   {error}
                 </p>
               )}
-              {activeTab === "conversation" ? (
-                <>
-                  {!messages.length && !isLoading && (
-                    <div className="ember-chat-intro">
-                      <Code2 size={26} />
-                      <h2>Let’s make something useful.</h2>
-                      <p>
-                        Your conversation and build updates will appear here.
-                      </p>
-                    </div>
-                  )}
-                  {messages.map((message) => (
-                    <MessageBubble key={message.id} message={message} />
-                  ))}
-                  {isBuilding && (
-                    <div className="ember-row ember-helper" role="status">
-                      <Loader2 size={15} className="animate-spin" />
-                      Working on your app. You can stop this run below.
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </>
-              ) : (
-                <>
-                  <div className="ember-chat-intro">
-                    <h2>What’s happening.</h2>
-                    <p>
-                      {isBuilding
-                        ? "A run is in progress. Activity updates as it works."
-                        : "Inspect the recorded tool activity for this project."}
-                    </p>
-                  </div>
-                  {getAllToolCalls(messages).length ? (
-                    <ToolCallsDropdown
-                      toolCalls={getAllToolCalls(messages)}
-                      isExpanded={showAllToolsDropdown}
-                      onToggle={() =>
-                        setShowAllToolsDropdown(!showAllToolsDropdown)
-                      }
-                    />
-                  ) : (
-                    <p className="ember-helper">
-                      No tool activity recorded yet.
-                    </p>
-                  )}
-                </>
+              {!messages.length && !isLoading && (
+                <div className="ember-chat-intro">
+                  <Code2 size={26} />
+                  <h2>Let’s make something useful.</h2>
+                  <p>
+                    Your conversation and build updates will appear here.
+                  </p>
+                </div>
               )}
+              {messages.map((message) => (
+                <MessageBubble key={message.id} message={message} connected={wsConnected} />
+              ))}
+              {isBuilding && !messages.some(message => message.id === `run:${runId}`) && (
+                <div className="ember-row ember-helper" role="status">
+                  <Loader2 size={15} className="animate-spin" />
+                  Working on your app. You can stop this run below.
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
             <ChatInput
+              files={projectFiles}
               input={input}
               wsConnected={wsConnected}
               isBuilding={isBuilding}
