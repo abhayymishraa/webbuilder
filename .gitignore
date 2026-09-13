@@ -17,3 +17,6 @@ deploy/runtime.env
 deploy/deployment.env
 .agents/
 .agents
+.DS_Store
+.codex
+.github/hooks/

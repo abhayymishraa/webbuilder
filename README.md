@@ -14,6 +14,14 @@ Project history retrieval and optional summaries are described in
 [context and memory](docs/context-memory.md). Retrieval uses the existing database;
 automatic compaction is disabled pending quality evaluation.
 
+The [runtime skills](docs/runtime-skills.md) load the 13 original
+Leonxlnx Taste skills, Anthropic's `frontend-design`, UI UX Pro Max, Impeccable,
+Emil's `emil-design-eng`, and Vercel's React guidance and `find-skills`
+on demand in the existing editing loop. Supporting references load individually;
+UI UX Pro Max's search scripts and Impeccable's launcher are installed files, not runtime tools.
+The skill catalog is available automatically in every editing run for every user;
+the agent loads relevant instructions on demand. No activation flag is required.
+
 ## Production
 
 - Frontend: https://webbuilder.abhayymishraa.us (Vercel)
