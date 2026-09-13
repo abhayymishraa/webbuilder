@@ -20,6 +20,7 @@ from .persistence import archive_slots, ensure_revision, latest_revision, revisi
 from .storage import StorageError
 from .events import redact, run_events
 from .context import ContextError, ProjectContext
+from .sandbox_runtime import SandboxRuntimes
 
 logger = logging.getLogger('webbuilder.runs')
 logger.setLevel(logging.INFO)
@@ -46,12 +47,51 @@ class LiveRun:
 class Service:
     def __init__(self):
         self.active: dict[str, LiveRun] = {}
-        self.sandboxes: dict[str, AsyncSandbox] = {}
+        self.runtimes = SandboxRuntimes()
+        self.sandboxes = self.runtimes.handles
+        self.sandbox_last_used = self.runtimes.last_used
         self.subscribers: dict[str, set[asyncio.Queue]] = {}
         self.admission = asyncio.Lock()
         self.stopping = False
         self.maintenance_task = None
         self.opening: set[str] = set()
+
+    async def require_sandbox_capacity(self, chat_id):
+        # Paused rows retain ownership without occupying a running slot.
+        reserved = await self.runtimes.reserved()
+        reserved |= set(self.sandboxes) | self.opening | {r.chat_id for r in self.active.values()}
+        row = await self.runtimes.get(chat_id) if chat_id else None
+        if (row and row.state in ('creating', 'retiring')) or (chat_id not in reserved and
+                len(reserved) >= int(os.getenv('MAX_LIVE_SANDBOXES', '2'))):
+            raise HTTPException(429, 'Live preview capacity reached or cleanup is pending; no credit was used.')
+
+    async def retire_sandbox(self, chat_id):
+        async with self.admission:
+            try:
+                return await self.runtimes.retire(chat_id)
+            except Exception as exc:
+                logger.warning('Sandbox cleanup deferred chat_id=%s error_type=%s', chat_id, type(exc).__name__)
+                return False
+
+    async def reap_idle_sandboxes(self):
+        async with self.admission:
+            await self.runtimes.maintain(self.opening | {r.chat_id for r in self.active.values()})
+
+    async def preview_status(self, chat):
+        async with self.admission:
+            if any(r.chat_id == chat.id for r in self.active.values()):
+                return {'url': None, 'state': 'building'}
+            if chat.id in self.opening:
+                return {'url': None, 'state': 'opening'}
+            row = await self.runtimes.get(chat.id)
+            if row and row.reusable and row.state != 'retiring' and row.revision_id == chat.latest_saved_revision_id:
+                try:
+                    if await self.runtimes.state(row) == 'running' and chat.app_url:
+                        # Observing status must not keep an idle preview alive.
+                        return {'url': chat.app_url, 'state': 'active', 'revision_id': row.revision_id}
+                except Exception:
+                    raise HTTPException(503, 'Preview status temporarily unavailable') from None
+            return {'url': None, 'state': 'sleeping'}
 
     async def startup(self):
         if self.maintenance_task and not self.maintenance_task.done():
@@ -64,6 +104,8 @@ class Service:
                 status='interrupted', reason='Server restarted before this run finished. Submit a new request to continue.',
                 finished_at=datetime.now(timezone.utc)))
             await db.execute(update(Chat).values(app_url=None))
+        # Reconcile before admission. Unknown states stay reserved; clean runtimes sleep.
+        await self.runtimes.maintain(set(), shutdown=True)
         from .maintenance import maintain_loop
         self.maintenance_task = asyncio.create_task(maintain_loop(self), name='persistence-maintenance')
 
@@ -76,6 +118,8 @@ class Service:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        async with self.admission:
+            await self.runtimes.maintain(set(), shutdown=True)
 
     async def admit(self, user_id: int, prompt: str, chat_id: str | None = None):
         prompt = prompt.strip()
@@ -84,6 +128,7 @@ class Service:
         async with self.admission:
             if self.stopping or len(self.active) + len(self.opening) >= int(os.getenv('MAX_CONCURRENT_RUNS', '2')):
                 raise HTTPException(429, 'The builder is busy. Try again shortly; no credit was used.')
+            await self.require_sandbox_capacity(chat_id)
             async with AsyncSessionLocal.begin() as db:
                 user = await db.scalar(select(User).where(User.id == user_id).with_for_update())
                 if not user:
@@ -154,16 +199,10 @@ class Service:
             await db.execute(update(Run).where(Run.id == live.id).values(metrics=redact(live.metrics)))
 
     async def get_e2b_sandbox(self, id: str):
-        sandbox = self.sandboxes.get(id)
-        if sandbox:
-            try:
-                await sandbox.set_timeout(1200)
-                return sandbox
-            except Exception:
-                self.sandboxes.pop(id, None)
         revision = await ensure_revision(id)
-        sandbox = await AsyncSandbox.create(template=revision.template_id if revision else os.environ['E2B_TEMPLATE_ID'], timeout=1200)
-        self.sandboxes[id] = sandbox
+        sandbox, restore = await self.runtimes.acquire(id, revision)
+        if not restore:
+            return sandbox
         try:
             await sandbox.commands.run('python3 -c "import hashlib, zipfile; assert hasattr(hashlib, \'file_digest\')"', timeout=10)
         except Exception:
@@ -175,6 +214,11 @@ class Service:
                 raise StorageError('Saved project needs package-lock.json before preview can be restored')
             await sandbox.commands.run('npm ci --ignore-scripts --no-audit --no-fund', cwd=ROOT, timeout=90)
         return sandbox
+
+    async def preview_ready(self, sandbox):
+        # The template owns the dev server. Never start a second server on resume.
+        await sandbox.commands.run('curl --fail --silent --retry 5 --retry-connrefused '
+            '--retry-delay 2 --max-time 5 http://localhost:5173/ >/dev/null', cwd=ROOT, timeout=45)
 
     async def save_files(self, live):
         if not live.sandbox:
@@ -197,28 +241,38 @@ class Service:
             if (self.stopping or chat_id in self.opening or any(r.chat_id == chat_id for r in self.active.values())
                     or len(self.active) + len(self.opening) >= int(os.getenv('MAX_CONCURRENT_RUNS', '2'))):
                 raise HTTPException(409, 'Wait for the current operation to finish')
+            await self.require_sandbox_capacity(chat_id)
             self.opening.add(chat_id)
         try:
-            if not await ensure_revision(chat_id):
+            revision = await ensure_revision(chat_id)
+            if not revision:
                 raise HTTPException(404, 'No saved project yet')
             async with asyncio.timeout(180):
                 sandbox = await self.get_e2b_sandbox(chat_id)
-                # The template owns the dev server. Confirm it responds, never start another server.
-                await sandbox.commands.run('curl --fail --silent --retry 5 --retry-connrefused '
-                    '--retry-delay 2 --max-time 5 http://localhost:5173/ >/dev/null', cwd=ROOT, timeout=45)
+                try:
+                    await self.preview_ready(sandbox)
+                except Exception:
+                    row = await self.runtimes.get(chat_id)
+                    # A full resume may cold-boot on provider fallback. Restore once;
+                    # do not repeatedly rebuild a newly restored, unhealthy preview.
+                    if not row or not row.reusable or not await self.retire_sandbox(chat_id):
+                        raise
+                    sandbox = await self.get_e2b_sandbox(chat_id)
+                    await self.preview_ready(sandbox)
                 url = 'https://' + sandbox.get_host(5173)
                 async with AsyncSessionLocal.begin() as db:
-                    await db.execute(update(Chat).where(Chat.id == chat_id).values(app_url=url))
-                return {'url': url}
+                    chat = await db.get(Chat, chat_id, with_for_update=True)
+                    if not chat or chat.latest_saved_revision_id != revision.id:
+                        raise StorageError('Saved project changed while opening its preview')
+                    await self.runtimes.mark_reusable(db, chat_id, revision.id)
+                    chat.app_url = url
+                return {'url': url, 'revision_id': revision.id}
         except BaseException:
-            sandbox = self.sandboxes.pop(chat_id, None)
-            if sandbox:
-                try:
-                    await asyncio.wait_for(sandbox.kill(), timeout=10)
-                except Exception:
-                    pass
+            await self.retire_sandbox(chat_id)
             raise
         finally:
+            if chat_id in self.sandboxes:
+                self.sandbox_last_used[chat_id] = time.monotonic()
             self.opening.discard(chat_id)
 
     async def finish(self, live, status, reason, result=None):
@@ -239,6 +293,7 @@ class Service:
                 metrics=redact(live.metrics), finished_at=datetime.now(timezone.utc)))
             changes = {'app_url': event['url']}
             if status == 'succeeded' and live.revision_id:
+                await self.runtimes.mark_reusable(db, live.chat_id, live.revision_id)
                 changes['latest_verified_revision_id'] = live.revision_id
             await db.execute(update(Chat).where(Chat.id == live.chat_id).values(**changes))
             db.add(RunEvent(run_id=live.id, sequence=event['sequence'], payload=event))
@@ -255,6 +310,8 @@ class Service:
             async with asyncio.timeout(int(os.getenv('RUN_TIMEOUT_SECONDS', '600'))):
                 await self.emit(live, 'run_started', message='Starting your request')
                 live.sandbox = await self.get_e2b_sandbox(live.chat_id)
+                # Commit unsafe state before the first possible mutation.
+                await self.runtimes.invalidate(live.chat_id)
                 result = await run_editor(live.sandbox, live.prompt,
                     lambda kind, **data: self.emit(live, kind, **data),
                     lambda dirty=False: self.checkpoint(live, dirty), live.metrics,
@@ -286,21 +343,24 @@ class Service:
             # Creation registers ownership before restoring files; cancellation can interrupt restoration.
             live.sandbox = live.sandbox or self.sandboxes.get(live.chat_id)
             live.metrics['elapsed_ms'] = round((time.monotonic() - started) * 1000)
-            if status != 'succeeded' and live.sandbox:
+            if status != 'succeeded':
                 # Completed mutation batches are already saved. Never archive a half-finished command.
-                try:
-                    await asyncio.wait_for(live.sandbox.kill(), timeout=10)
+                if live.sandbox:
+                    self.sandboxes[live.chat_id] = live.sandbox
+                if await self.retire_sandbox(live.chat_id):
                     live.metrics['sandbox_cleanup'] = 'killed'
-                except Exception:
-                    live.metrics['sandbox_cleanup'] = 'ttl_fallback'
-                    reason += ' Sandbox cleanup could not be confirmed; its 20-minute expiry still applies.'
-                    logger.warning('Sandbox kill failed; sandbox TTL remains bounded run_id=%s', live.id)
-                self.sandboxes.pop(live.chat_id, None)
+                else:
+                    live.metrics['sandbox_cleanup'] = 'pending'
+                    reason += ' Sandbox cleanup is pending. Reopening is blocked until ownership is resolved.'
+                    logger.warning('Sandbox cleanup remains reserved run_id=%s', live.id)
             try:
                 await self.finish(live, status, reason, result)
             except Exception:
+                await self.retire_sandbox(live.chat_id)
                 logger.error('Could not persist terminal state run_id=%s', live.id)
                 self.publish(live.chat_id, {'e': 'resync'})
+            if live.chat_id in self.sandboxes:
+                self.sandbox_last_used[live.chat_id] = time.monotonic()
             self.active.pop(live.id, None)
 
     async def cancel(self, run_id):

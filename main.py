@@ -276,15 +276,7 @@ async def get_run_logs(run_id: str, current_user: User = Depends(get_current_use
 @app.get("/projects/{id}/preview")
 async def get_preview_status(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     chat = await owned_chat(id, current_user, db)
-    sandbox = agent_service.sandboxes.get(id)
-    if sandbox:
-        try:
-            if await sandbox.is_running(request_timeout=5):
-                return {"url": chat.app_url, "state": "active"}
-        except Exception:
-            raise HTTPException(503, "Preview status temporarily unavailable") from None
-        agent_service.sandboxes.pop(id, None)
-    return {"url": None, "state": "sleeping"}
+    return await agent_service.preview_status(chat)
 
 
 @app.get("/projects")
@@ -315,12 +307,7 @@ async def delete_project(id: str, current_user: User = Depends(get_current_user)
             db.add(StorageDeletion(object_key=key))
         await db.execute(delete(Chat).where(Chat.id == id))
         await db.commit()  # Revoke owned access before asynchronous object cleanup.
-        sandbox = agent_service.sandboxes.pop(id, None)
-    if sandbox:
-        try:
-            await asyncio.wait_for(sandbox.kill(), timeout=10)
-        except Exception:
-            pass
+    await agent_service.retire_sandbox(id)
     return {'deleted': True, 'storage_cleanup': 'queued'}
 
 

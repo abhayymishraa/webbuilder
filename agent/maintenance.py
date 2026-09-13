@@ -114,9 +114,14 @@ async def maintain(service):
 
 
 async def maintain_loop(service):
-    while True:
-        try:
-            await maintain(service)
-        except Exception as exc:
-            logger.warning('Persistence maintenance deferred error_type=%s', type(exc).__name__)
-        await asyncio.sleep(60)
+    async def repeat(action, message):
+        while True:
+            try:
+                await action()
+            except Exception as exc:
+                logger.warning('%s error_type=%s', message, type(exc).__name__)
+            await asyncio.sleep(60)
+
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(repeat(service.reap_idle_sandboxes, 'Sandbox cleanup deferred'), name='sandbox-cleanup')
+        tasks.create_task(repeat(lambda: maintain(service), 'Persistence maintenance deferred'), name='storage-cleanup')
