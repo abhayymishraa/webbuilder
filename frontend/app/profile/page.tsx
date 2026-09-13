@@ -8,6 +8,7 @@ import { authApi, type AuthOptions, type UserData } from "@/api";
 import { ChatNavbar } from "@/components/chat";
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
 import { CreditReset } from "@/components/ember/CreditReset";
+import { ProfileSkeleton } from "@/components/ember/ProfileSkeleton";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -73,7 +74,7 @@ export default function ProfilePage() {
       <main className="ember-profile" id="main-content">
         <div className="ember-profile-heading"><p className="ember-eyebrow">Your workspace, your way</p><h1>Profile</h1><p>A little about the person behind the ideas.</p></div>
         {error && <p role="alert" className="ember-error">{error}</p>}
-        {!user ? <div className="ember-profile-loading" role="status">{error ? <button className="ember-button" onClick={() => setAttempt(v => v + 1)}>Try again</button> : "Loading your profile…"}</div> : <>
+        {!user ? (error ? <div className="ember-profile-loading"><button className="ember-button" onClick={() => setAttempt(v => v + 1)}>Try again</button></div> : <ProfileSkeleton />) : <>
           <section className="ember-profile-card" aria-label="Your profile overview">
             <div className="ember-profile-mountain" aria-hidden="true" />
             <div className="ember-profile-identity">
