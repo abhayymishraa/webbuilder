@@ -1,6 +1,6 @@
 FROM node:22-bookworm-slim
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tree \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tree python3 \
     && rm -rf /var/lib/apt/lists/*
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 RUN mkdir -p /opt/webbuilder-checks && cd /opt/webbuilder-checks \
