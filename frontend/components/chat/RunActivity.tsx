@@ -3,6 +3,7 @@
 // Interaction patterns adapted from Beautiful UI, MIT © 2026 Shane Levine.
 // See ../ember/BEAUTIFUL-UI-LICENSE. All progress comes from recorded run events.
 import { memo, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { CheckIcon, Cross2Icon, FileTextIcon, ChevronRightIcon, ClockIcon, CopyIcon, Link2Icon } from "@radix-ui/react-icons";
 import type { Message, ToolCall } from "@/lib/chat-types";
 import { presentTool } from "@/lib/tool-presentation";
@@ -47,7 +48,8 @@ function RecordedResult({ output, label = "Recorded result" }: { output: string;
 function ToolCopyActions({ tool, value }: { tool: ToolCall; value: unknown }) {
   const [status, setStatus] = useState("");
   const copy = async (text: string, success: string) => {
-    try { await navigator.clipboard.writeText(text); setStatus(success); }
+    setStatus("");
+    try { await navigator.clipboard.writeText(text); toast.success(success, { id: "tool-copy" }); }
     catch { setStatus("Copy failed. Select the visible text to copy it."); }
   };
   return <div className={styles.copyActions}>

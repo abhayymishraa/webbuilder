@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ember/ThemeProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -42,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="dark">
       <body className="font-sans antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>{children}<Toaster /></ThemeProvider>
       </body>
     </html>
   );

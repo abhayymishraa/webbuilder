@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Check, Mail } from "lucide-react";
 import { SiGithub, SiGoogle } from "react-icons/si";
 import { authApi, type AuthOptions, type UserData } from "@/api";
@@ -19,7 +20,6 @@ export default function ProfilePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [saved, setSaved] = useState("");
   const [attempt, setAttempt] = useState(0);
 
   const refreshCredits = useCallback(() => {
@@ -51,11 +51,12 @@ export default function ProfilePage() {
 
   async function save(event: React.FormEvent) {
     event.preventDefault(); if (busy) return;
-    setBusy(true); setError(""); setMessage(""); setSaved("");
+    setBusy(true); setError(""); setMessage("");
     try {
       const value = await authApi.updateProfile({ name: name.trim(), bio: bio.trim() });
       setUser(value); setName(value.name); setBio(value.bio || "");
-      localStorage.setItem("user_data", JSON.stringify(value)); setSaved("Your changes are saved.");
+      localStorage.setItem("user_data", JSON.stringify(value));
+      toast.success("Your changes are saved.", { id: "profile-save" });
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save your changes."); }
     finally { setBusy(false); }
   }
@@ -93,10 +94,9 @@ export default function ProfilePage() {
           <div className="ember-profile-settings">
             <section aria-labelledby="details-title"><h2 id="details-title">Personal details</h2><p>This is how you appear in your workspace.</p>
               <form className="ember-form" onSubmit={save} aria-busy={busy}>
-                <label htmlFor="profile-name">Name<input id="profile-name" value={name} onChange={e => { setName(e.target.value); setSaved(""); }} maxLength={100} required autoComplete="name" disabled={busy} /></label>
-                <label htmlFor="profile-bio">About you <textarea id="profile-bio" value={bio} onChange={e => { setBio(e.target.value); setSaved(""); }} rows={3} maxLength={280} placeholder="What do you like to make?" disabled={busy} /></label>
+                <label htmlFor="profile-name">Name<input id="profile-name" value={name} onChange={e => setName(e.target.value)} maxLength={100} required autoComplete="name" disabled={busy} /></label>
+                <label htmlFor="profile-bio">About you <textarea id="profile-bio" value={bio} onChange={e => setBio(e.target.value)} rows={3} maxLength={280} placeholder="What do you like to make?" disabled={busy} /></label>
                 <button className="ember-button" disabled={busy || !dirty || !name.trim()}>{busy ? "Please wait…" : "Save changes"}</button>
-                <p role="status" className="ember-helper">{saved}</p>
               </form>
             </section>
             <section aria-labelledby="signin-title"><h2 id="signin-title">Sign-in methods</h2><p>Keep your ideas within reach.</p>

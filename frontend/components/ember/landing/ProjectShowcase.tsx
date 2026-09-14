@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check } from "lucide-react";
 import { starterBriefs } from "@/lib/starter-briefs";
+import { TiltedPreview } from "./TiltedPreview";
 import styles from "./project-showcase.module.css";
 
 const concepts = [
@@ -58,7 +59,9 @@ export function ProjectShowcase() {
       <button className={`${styles.arrow} ${styles.previous}`} type="button" aria-label="Previous concept" onClick={event => move(-1, event.detail > 0)}><span className={styles.arrowFace}><ArrowLeft size={17} aria-hidden="true" /></span></button>
       <div className={styles.slideStack} data-animate={animate}>
       {concepts.map((item, index) => <article key={item.brief.id} className={styles.card} data-active={index === active} inert={index !== active} aria-hidden={index !== active} role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${concepts.length}: ${item.brief.title}`}>
-        <ExamplePreview kind={item.brief.id} />
+        <TiltedPreview active={index === active}>
+          <ExamplePreview kind={item.brief.id} />
+        </TiltedPreview>
         <div className={styles.copy}>
           <p className={styles.category}>{item.brief.category}</p>
           <h3>{item.brief.title}</h3>

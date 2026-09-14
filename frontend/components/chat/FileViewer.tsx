@@ -4,14 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import {
   FileCode,
-  Folder,
-  ChevronRight,
-  ChevronDown,
   Download,
   Loader2,
   FolderArchive,
 } from "lucide-react";
 import apiClient from "@/api/client";
+import { toast } from "sonner";
+import { File, Folder, Tree } from "@/components/ui/file-tree";
 
 interface FileViewerProps {
   files: string[];
@@ -102,76 +101,11 @@ function getFileIcon(filename: string) {
   );
 }
 
-function FileTreeNode({
-  node,
-  onSelectFile,
-  selectedFile,
-  depth = 0,
-}: {
-  node: FileNode;
-  onSelectFile: (path: string) => void;
-  selectedFile: string | null;
-  depth?: number;
-}) {
-  const [isExpanded, setIsExpanded] = useState(depth === 0);
-
-  const isSelected = selectedFile === node.path;
-
-  return (
-    <div>
-      <div
-        className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors ${
-          isSelected
-            ? "bg-accent border-l-2 border-blue-400"
-            : "hover:bg-secondary"
-        }`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        onClick={() => {
-          if (node.isDirectory) {
-            setIsExpanded(!isExpanded);
-          } else {
-            onSelectFile(node.path);
-          }
-        }}
-      >
-        {node.isDirectory ? (
-          <>
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            )}
-            <Folder className="w-4 h-4 text-yellow-400/80" />
-            <span className="text-sm text-foreground font-medium">
-              {node.name}
-            </span>
-          </>
-        ) : (
-          <>
-            <div className="w-4" />
-            {getFileIcon(node.name)}
-            <span className="text-sm text-secondary-foreground">
-              {node.name}
-            </span>
-          </>
-        )}
-      </div>
-
-      {node.isDirectory && isExpanded && node.children && (
-        <div>
-          {node.children.map((child) => (
-            <FileTreeNode
-              key={child.path}
-              node={child}
-              onSelectFile={onSelectFile}
-              selectedFile={selectedFile}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function FileTreeNode({ node }: { node: FileNode }) {
+  if (!node.isDirectory) return <File value={node.path} name={node.name} />;
+  return <Folder value={node.path} name={node.name}>
+    {node.children?.map(child => <FileTreeNode key={child.path} node={child} />)}
+  </Folder>;
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -190,6 +124,7 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
   const [fileContent, setFileContent] = useState<string>("");
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
   const fileTree = buildFileTree(files);
   const [binary, setBinary] = useState(false);
   const requestNumber = useRef(0);
@@ -216,20 +151,22 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
 
   const handleDownloadFile = async () => {
     if (!selectedFile) return;
-
+    setDownloadError("");
     try {
       const { data: blob } = await apiClient.get<Blob>(
         `/projects/${projectId}/files/${encodeURIComponent(selectedFile)}?raw=true&${revisionQuery}`,
         { responseType: "blob" },
       );
       downloadBlob(blob, selectedFile.split("/").pop() || "file.txt");
-    } catch (error) {
-      console.error("Failed to download file:", error);
+      toast.success("File download started", { description: selectedFile, id: `download-${projectId}` });
+    } catch {
+      setDownloadError("Could not download this file. Please try again.");
     }
   };
 
   const handleDownloadAll = async () => {
     setIsDownloading(true);
+    setDownloadError("");
     try {
       const response = await apiClient.get<Blob>(
         `/projects/${projectId}/download?${revisionQuery}`,
@@ -239,8 +176,9 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
       );
 
       downloadBlob(response.data, `${projectId}-files.zip`);
-    } catch (error) {
-      console.error("Failed to download all files:", error);
+      toast.success("Project ZIP download started", { id: `download-${projectId}` });
+    } catch {
+      setDownloadError("Could not download the project ZIP. Please try again.");
     } finally {
       setIsDownloading(false);
     }
@@ -293,16 +231,11 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
           </p>
         </div>
 
-        <div className="p-2">
-          {fileTree.map((node) => (
-            <FileTreeNode
-              key={node.path}
-              node={node}
-              onSelectFile={setSelectedFile}
-              selectedFile={selectedFile}
-            />
-          ))}
-        </div>
+        {downloadError && <p role="alert" className="px-3 py-2 text-xs text-destructive">{downloadError}</p>}
+        <Tree selectedId={selectedFile} onSelectFile={setSelectedFile}
+          initialExpandedItems={fileTree.filter(node => node.isDirectory).map(node => node.path)}>
+          {fileTree.map(node => <FileTreeNode key={node.path} node={node} />)}
+        </Tree>
       </div>
 
       {/* Editor Area */}
