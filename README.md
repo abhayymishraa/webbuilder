@@ -125,22 +125,47 @@ Updates use current stable releases at template release time, never floating
 `latest` installs during a user's build. Generated apps only bundle Motion if
 they import it. Full component kits, charts and 3D libraries remain on demand.
 
-With the E2B CLI authenticated, build from its separate directory:
+The host-side [template release command](sandbox/template.py) uses the pinned
+E2B Python SDK and the existing Dockerfile. It starts Vite during the template
+build, waits for HTTP 200 with E2B's `wait_for_url`, and snapshots the running
+process. This handles initial startup; the runtime still restarts Vite after
+restoring or changing project files.
+
+With `E2B_API_KEY` in your private `.env`, run from the repository root after
+obtaining approval for the E2B build:
 
 ```bash
-e2b template create webbuilder-react-design-20260914 --path sandbox --dockerfile Dockerfile \
-  --cmd 'cd /home/user/react-app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort' \
-  --ready-cmd 'curl -fsS http://127.0.0.1:5173/ >/dev/null' \
-  --cpu-count 1 --memory-mb 1024
+uv run --frozen --env-file .env python sandbox/template.py build webbuilder-react-design:v2026-09-14-1
 ```
 
-Set `E2B_TEMPLATE_ID` to the resulting template ID. Existing templates remain
-available; building this template does not delete them.
-The template built and smoke-checked on 14 September 2026 is
-`dwel3q1jkunk4chqfw7h`. See the [validation record](docs/e2b-starter-validation-2026-09-14.md).
-Restart the backend after changing its environment. Saved revisions retain their
-recorded template IDs and dependencies; they are not automatically upgraded.
-Older templates without Chromium cannot pass the new browser gate.
+Use a fresh `v...` release label for each build. Logs go to stderr; stdout returns
+JSON containing `build_ref` and the exact `E2B_TEMPLATE_ID` assignment. Tags are
+mutable; the returned build UUID pins the artifact. The build does not move the
+staging/production tags or change any backend environment.
+
+Copy the returned `build_ref` into `BUILD_REF`, then promote that exact artifact:
+
+```bash
+BUILD_REF='webbuilder-react-design:<build-UUID-from-output>'
+uv run --frozen --env-file .env python sandbox/template.py promote "$BUILD_REF" --to staging
+# After approved disposable-sandbox build, browser and restore/restart checks:
+uv run --frozen --env-file .env python sandbox/template.py promote "$BUILD_REF" --to production
+```
+
+Promotion uses E2B's `Template.assign_tags`; it neither rebuilds nor runs checks.
+It accepts an exact build UUID, not a moving release/environment tag. Set each
+backend's private `E2B_TEMPLATE_ID` to that same **build_ref**, not `:production`
+or a bare template name, and restart after active generations finish. Retain
+the previous exact reference for rollback. The backend continues recording
+that reference with saved revisions, so moving a tag cannot upgrade them.
+
+Existing projects keep their recorded template references and dependencies.
+Legacy bare IDs remain supported; their original build pins are not backfilled.
+The earlier template ID `dwel3q1jkunk4chqfw7h` remains available. No new template
+has been built or validated by adding these release commands.
+
+References: [E2B start/readiness](https://docs.e2b.dev/template/start-ready-command)
+and [template tags/build IDs](https://docs.e2b.dev/template/tags).
 
 ### Preview synchronization
 
@@ -168,6 +193,51 @@ do not need rebuilding for this change.
 
 OpenAI and E2B usage have their own billing or free-credit limits. Free frontend
 and VM hosting do not make AI generation free.
+
+### Optional visual observations
+
+The existing `inspect_preview` tool accepts `screenshot=true` for a concrete visual
+question. Text-only inspection remains the default. It captures one desktop or
+mobile viewport as a JPEG (maximum 200 KB), masks password inputs and disables
+animations during capture. There are at most two screenshot attempts per run.
+The selected model must support image input; set `PREVIEW_SCREENSHOTS_ENABLED=false`
+when deploying a text-only model.
+
+Screenshots use Playwright already installed in the sandbox and native E2B file
+streaming. The backend sends a real low-detail image block in the tool response,
+then removes the image from context after the next model response. It reserves
+4,096 estimated input tokens per image for admission; actual provider usage still
+counts against the run budget. Base64 bytes are not counted as text tokens.
+These are cost bounds, not a measured saving or guarantee of image understanding.
+
+Images are not added to run events, persisted chat history or project archives.
+Temporary sandbox files are removed on a best-effort basis after transfer. Public
+tool details report only whether capture succeeded. Inspection blocks external
+document navigation, but page scripts and third-party assets can still make network
+requests. There are no click, typing or form-submission actions. Inspection does
+not replace the final build/browser checks or prove feature completeness.
+
+### Failure diagnostics
+
+On sandbox-related run failures and run timeouts, the host collects one bounded
+diagnostic snapshot before retiring the sandbox. Successful runs, ordinary build
+failures, token-budget stops and normal cancellations do not trigger it. Requests
+run concurrently with a four-second deadline; unavailable evidence cannot turn
+the run into a success or prevent retirement. Cancellation during collection
+still proceeds to cleanup.
+
+`Run.metrics.sandbox_diagnostics` contains up to three recent CPU/memory/disk
+samples and five sandbox-specific lifecycle events. Metrics use native
+`AsyncSandbox.get_metrics`; E2B 2.49.1 exposes lifecycle events through its
+documented REST endpoint. Only event type, timestamp and identity are retained;
+raw event data, headers, metadata and exception messages are excluded. Neither
+request resumes the sandbox or adds input to the generation model.
+
+Sources: [Playwright screenshots](https://playwright.dev/docs/api/class-page#page-screenshot),
+[E2B metrics](https://docs.e2b.dev/sandbox/metrics), and
+[E2B lifecycle events](https://docs.e2b.dev/sandbox/lifecycle-events-api).
+These observation/diagnostic additions have not yet been checked; the earlier
+native-migration acceptance predates them.
 
 ## Local build
 
