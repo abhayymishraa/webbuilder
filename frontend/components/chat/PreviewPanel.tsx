@@ -9,7 +9,7 @@ import {
   Tablet,
   RotateCcw,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PreviewPhase } from "@/lib/use-preview-lifecycle";
 import { FileViewer } from "./FileViewer";
 
@@ -21,6 +21,7 @@ interface PreviewPanelProps {
   revisionId?: string | null;
   isBuilding?: boolean;
   activeTab: TabType;
+  visible: boolean;
   onTabChange: (tab: TabType) => void;
   phase: PreviewPhase;
   previewError: string | null;
@@ -36,6 +37,7 @@ export function PreviewPanel({
   revisionId,
   isBuilding,
   activeTab,
+  visible,
   onTabChange,
   phase,
   previewError,
@@ -43,6 +45,20 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const [viewport, setViewport] = useState("desktop");
   const [refresh, setRefresh] = useState(0);
+  const [retainPreview, setRetainPreview] = useState(false);
+  const previewReady = visible && Boolean(appUrl) && phase === "active" && !isBuilding;
+  // Reset before children render so a stale retention flag cannot mount an iframe.
+  if (retainPreview && !previewReady) {
+    setRetainPreview(false);
+  } else if (!retainPreview && previewReady && activeTab === "preview") {
+    setRetainPreview(true);
+  }
+  useEffect(() => {
+    if (!previewReady || activeTab === "preview") return;
+    // A short Files visit preserves the iframe. Hidden work is bounded.
+    const timer = setTimeout(() => setRetainPreview(false), 60_000);
+    return () => clearTimeout(timer);
+  }, [activeTab, previewReady, appUrl]);
   const preparing =
     Boolean(revisionId) && (phase === "checking" || phase === "opening");
   const building = isBuilding || phase === "building";
@@ -148,9 +164,10 @@ export function PreviewPanel({
           )}
         </div>
       </div>
-      {activeTab === "preview" ? (
+      {visible && (activeTab === "preview" || retainPreview) && (
         <div
           className="ember-preview-stage flex-1 min-h-0 overflow-auto flex justify-center p-5 [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:min-h-70 [&_iframe]:border [&_iframe]:border-border [&_iframe]:rounded-[8px] [&_iframe]:bg-white [&>.ember-empty]:w-full [&>.ember-empty]:border-solid [&>.ember-empty]:justify-center max-md:p-2.5"
+          style={activeTab === "files" ? { display: "none" } : undefined}
         >
           {appUrl && phase === "active" && !building ? (
             <iframe
@@ -175,7 +192,8 @@ export function PreviewPanel({
             </div>
           )}
         </div>
-      ) : (
+      )}
+      {activeTab === "files" && (
         <div className="ember-preview-files flex-1 min-h-0 overflow-hidden">
           <FileViewer
             key={projectId}

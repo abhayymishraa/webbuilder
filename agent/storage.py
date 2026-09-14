@@ -97,11 +97,20 @@ class ObjectStore:
         try:
             if self.provider == 'gcs':
                 from google.api_core.exceptions import NotFound
-                try:
-                    self.client.bucket(self.bucket).blob(key).delete(timeout=20)
-                except NotFound:
-                    pass
+                # Delete every generation, including noncurrent versions. Exact-name
+                # filtering is essential: a prefix may also match another object.
+                for blob in self.client.list_blobs(self.bucket, prefix=key, versions=True, timeout=20):
+                    if blob.name != key:
+                        continue
+                    try:
+                        blob.delete(if_generation_match=blob.generation, timeout=20)
+                    except NotFound:
+                        pass
             else:
-                self.client.delete_object(Bucket=self.bucket, Key=key)
+                pages = self.client.get_paginator('list_object_versions').paginate(Bucket=self.bucket, Prefix=key)
+                for page in pages:
+                    for version in page.get('Versions', []) + page.get('DeleteMarkers', []):
+                        if version['Key'] == key:
+                            self.client.delete_object(Bucket=self.bucket, Key=key, VersionId=version['VersionId'])
         except Exception:
             raise StorageError('Private storage delete failed') from None

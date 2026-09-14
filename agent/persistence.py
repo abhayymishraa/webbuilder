@@ -23,6 +23,7 @@ from .tools import ROOT
 # Bound archive memory and provider requests on the small single-worker VM.
 archive_slots = asyncio.Semaphore(2)
 PROJECTS = Path(__file__).resolve().parent.parent / 'projects'
+_uploads = {}  # Strong references keep cancelled callers' uploads tracked until SDK completion.
 
 
 async def reserve_transfer(direction, size):
@@ -45,9 +46,35 @@ async def read_object(key, size):
     return await storage_call('read', key, size)
 
 
-async def put_object(key, data, content_type='application/zip'):
-    await reserve_transfer('uploaded', len(data))
-    await storage_call('put', key, data, content_type)
+async def put_object(key, data, content_type='application/zip', *, chat_id):
+    async def upload():
+        # Register before any await; deletion drains earlier uploads, and later
+        # uploads must reject the deleted owner before starting provider I/O.
+        async with AsyncSessionLocal() as db:
+            if await db.get(Chat, chat_id) is None:
+                raise StorageError('Project was deleted; upload cancelled')
+        await reserve_transfer('uploaded', len(data))
+        await storage_call('put', key, data, content_type)
+
+    task = asyncio.create_task(upload())
+    pending = _uploads.setdefault(key, set())
+    pending.add(task)
+
+    def finished(done):
+        pending.remove(done)
+        if not pending:
+            _uploads.pop(key, None)
+        if not done.cancelled():
+            done.exception()
+
+    task.add_done_callback(finished)
+    await asyncio.shield(task)
+
+
+async def wait_for_uploads(key):
+    pending = tuple(_uploads.get(key, ()))
+    if pending:
+        await asyncio.gather(*(asyncio.shield(task) for task in pending), return_exceptions=True)
 
 
 async def latest_revision(chat_id):
@@ -119,7 +146,7 @@ async def save_revision(chat_id, run_id, archive, template, event_factory=None):
             template_id=template)
         db.add(revision)
     # A crash here leaves a pending row. Recovery checks this exact object and hash.
-    await put_object(revision.object_key, archive)
+    await put_object(revision.object_key, archive, chat_id=chat_id)
     event = event_factory(revision_id) if event_factory else None
     await promote(revision_id, event)
     return revision_id, event

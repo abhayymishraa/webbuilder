@@ -1,4 +1,5 @@
 import type { LoginResponse } from "./types.ts";
+import { clearFileContentCache } from "../lib/file-content-cache.ts";
 
 export function getSessionId(): string | null {
   if (!localStorage.getItem("auth_token")) return null;
@@ -7,6 +8,7 @@ export function getSessionId(): string | null {
 }
 
 export function clearSession() {
+  clearFileContentCache();
   for (const key of ["auth_token", "refresh_token", "auth_session_id", "user_data"]) {
     localStorage.removeItem(key);
   }
@@ -21,6 +23,7 @@ export function storeTokens(session: LoginResponse) {
 }
 
 export function saveSession(session: LoginResponse) {
+  clearFileContentCache();
   try {
     storeTokens(session);
     localStorage.setItem("auth_session_id", crypto.randomUUID());

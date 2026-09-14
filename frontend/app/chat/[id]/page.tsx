@@ -46,12 +46,15 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
   const [projectFiles, setProjectFiles] = useState<string[]>([]);
   const [previewTab, setPreviewTab] = useState<"preview" | "files">("preview");
   const [desktopPreview, setDesktopPreview] = useState<boolean | null>(null);
+  const workspaceVisible =
+    showPreview &&
+    desktopPreview !== null &&
+    (desktopPreview || mobilePane === "preview");
   const preview = usePreviewLifecycle({
     projectId: chatId,
     revisionId,
     isBuilding,
-    enabled: showPreview && previewTab === "preview" && desktopPreview !== null &&
-      (desktopPreview || mobilePane === "preview"),
+    enabled: workspaceVisible && previewTab === "preview",
     onPreviewOpen: setAppUrl,
   });
 
@@ -448,6 +451,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
                 isBuilding={isBuilding}
                 projectId={chatId}
                 activeTab={previewTab}
+                visible={workspaceVisible}
                 onTabChange={setPreviewTab}
                 phase={preview.phase}
                 previewError={preview.error}

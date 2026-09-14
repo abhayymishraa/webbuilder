@@ -22,6 +22,34 @@ UI UX Pro Max's search scripts and Impeccable's launcher are installed files, no
 The skill catalog is available automatically in every editing run for every user;
 the agent loads relevant instructions on demand. No activation flag is required.
 
+## Deleting projects
+
+Use **Delete** on a project card in the project list or workspace project drawer.
+After confirmation, `DELETE /projects/{id}` checks ownership and refuses deletion
+while a generation or preview-opening operation is active. The database transaction
+removes the project, messages, runs, events, revisions, and derived memory, and queues
+the saved revision objects, log archives, and legacy local directory for cleanup.
+File deletion and sandbox termination start immediately after that transaction,
+in parallel, with a 10-second cleanup wait. The response reports each independently
+as `completed` or `queued`; the UI shows when cleanup is still pending. Failed or
+timed-out work retains its durable records for the backend maintenance loop to retry
+(60 seconds between passes). No separate queue service or new table is needed.
+
+On the single-worker backend, file deletion waits for already-started uploads,
+including uploads whose callers were cancelled. New uploads check that the project
+still exists before writing. This replaces the fixed 24-hour cleanup delay. Successful
+deletes remove their retry records; other queued objects continue processing after
+individual failures. GCS generations and MinIO versions/delete
+markers are removed by exact object name. Storage credentials need object-version
+listing and deletion permissions. This does not delete the shared bucket.
+
+Provider retention, object holds, database backups, and infrastructure access logs
+have separate lifetimes. In particular, [GCS soft delete](https://cloud.google.com/storage/docs/soft-delete)
+can retain recoverable objects after deletion until its retention period expires.
+The application does not change bucket-wide retention policies. A successful delete
+response means access is revoked. Even `completed` cleanup does not mean provider
+backups or soft-deleted copies have already been permanently erased.
+
 ## Production
 
 - Frontend: https://webbuilder.abhayymishraa.us (Vercel)

@@ -4,7 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { clearSession } from "@/api/session";
 
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -14,9 +14,19 @@ import { ProjectCollection } from "@/components/chat/ProjectCollection";
 import { ProjectCollectionSkeleton } from "@/components/chat/ProjectCollectionSkeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 
+function subscribeSession(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export default function ProjectsPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const hasSession = useSyncExternalStore(
+    subscribeSession,
+    () => Boolean(localStorage.getItem("auth_token")),
+    () => false,
+  );
   const [user, setUser] = useState<UserData | null>(null);
   useEffect(() => {
     if (!localStorage.getItem("auth_token")) {
@@ -72,7 +82,7 @@ export default function ProjectsPage() {
               New project
             </Link>
           </div>
-          {ready ? (
+          {hasSession ? (
             <ProjectCollection />
           ) : (
             <>

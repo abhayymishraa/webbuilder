@@ -1,10 +1,22 @@
 import { apiClient } from "./client";
 import { ChatResponse, Project } from "./types";
 
+type ProjectDeletion = {
+  deleted: true;
+  storage_cleanup: "completed" | "queued";
+  sandbox_cleanup: "completed" | "queued";
+};
+
 /**
  * Chat API Service
  */
 export const chatApi = {
+  deleteProject: async (id: string): Promise<ProjectDeletion> => {
+    const response = await apiClient.delete<ProjectDeletion>(
+      `/projects/${encodeURIComponent(id)}`,
+    );
+    return response.data;
+  },
   /**
    * Create or start a new chat
    */

@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { FileCode, Download, Loader2, FolderArchive } from "lucide-react";
 import apiClient from "@/api/client";
+import { getSessionId } from "@/api/session";
+import {
+  cacheFile,
+  getCachedFile,
+  type SavedFileContent,
+} from "@/lib/file-content-cache";
 import { toast } from "sonner";
 import { File, Folder, Tree } from "@/components/ui/file-tree";
 
@@ -126,29 +132,48 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
   const [downloadError, setDownloadError] = useState("");
   const fileTree = buildFileTree(files);
   const [binary, setBinary] = useState(false);
-  const requestNumber = useRef(0);
   const revisionQuery = revisionId
     ? `revision_id=${encodeURIComponent(revisionId)}`
     : "";
 
   useEffect(() => {
-    const request = ++requestNumber.current;
     if (!selectedFile) return;
+    const sessionId = getSessionId();
+    const key =
+      sessionId && revisionId
+        ? JSON.stringify([sessionId, projectId, revisionId, selectedFile])
+        : null;
+    const cached = key ? getCachedFile(key) : undefined;
+    if (cached) {
+      setBinary(cached.binary);
+      setFileContent(cached.content ?? "");
+      setIsLoadingFile(false);
+      return;
+    }
+    const controller = new AbortController();
     setIsLoadingFile(true);
     setBinary(false);
-    apiClient.get<{ content: string | null; binary: boolean }>(
-      `/projects/${projectId}/files/${encodeURIComponent(selectedFile)}?${revisionQuery}`,
-    ).then(({ data }) => {
-      if (request !== requestNumber.current) return;
-      setBinary(data.binary);
-      setFileContent(data.content ?? "");
-    }).catch(() => {
-      if (request === requestNumber.current) setFileContent("Saved file could not be loaded. Try again.");
-    }).finally(() => {
-      if (request === requestNumber.current) setIsLoadingFile(false);
-    });
-    return () => { requestNumber.current += 1; };
-  }, [projectId, selectedFile, revisionQuery]);
+    setFileContent("");
+    apiClient
+      .get<SavedFileContent>(
+        `/projects/${projectId}/files/${encodeURIComponent(selectedFile)}?${revisionQuery}`,
+        { signal: controller.signal },
+      )
+      .then(({ data }) => {
+        if (controller.signal.aborted || getSessionId() !== sessionId) return;
+        if (key) cacheFile(key, data);
+        setBinary(data.binary);
+        setFileContent(data.content ?? "");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setFileContent("Saved file could not be loaded. Try again.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoadingFile(false);
+      });
+    return () => controller.abort();
+  }, [projectId, selectedFile, revisionId, revisionQuery]);
 
   const handleDownloadFile = async () => {
     if (!selectedFile) return;

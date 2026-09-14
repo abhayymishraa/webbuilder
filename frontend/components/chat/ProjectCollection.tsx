@@ -3,12 +3,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 
 import { useEffect, useState, type PointerEvent } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   FolderOpen,
   PanelsTopLeft,
   Search,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { chatApi } from "@/api/chat";
 import type { Project } from "@/api/types";
 import { ProjectCollectionSkeleton } from "./ProjectCollectionSkeleton";
@@ -44,11 +47,51 @@ export function ProjectCollection({
   compact?: boolean;
   onOpen?: () => void;
 }) {
+  const pathname = usePathname();
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function deleteProject(project: Project) {
+    if (
+      deletingId ||
+      !window.confirm(
+        `Delete “${project.title}”? This removes its chat, saved files, and run history, and stops its preview. This cannot be undone in WebBuilder.`,
+      )
+    )
+      return;
+    setDeletingId(project.id);
+    try {
+      const result = await chatApi.deleteProject(project.id);
+      setProjects((current) =>
+        current.filter((item) => item.id !== project.id),
+      );
+      const cleanupPending =
+        result.storage_cleanup !== "completed" ||
+        result.sandbox_cleanup !== "completed";
+      toast.success(cleanupPending ? "Project removed; cleanup pending" : "Project deleted", {
+        description: cleanupPending
+          ? "Some files or the preview are still being removed. Cleanup will retry automatically."
+          : "Saved files were removed and the preview was stopped.",
+      });
+      if (pathname === `/chat/${project.id}`) {
+        onOpen?.();
+        router.replace("/projects");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not delete the project. Please try again.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
   useEffect(() => {
     let disposed = false;
     chatApi
@@ -139,13 +182,16 @@ export function ProjectCollection({
           onPointerMove={updateSpotlight}
         >
           {visible.map((project) => (
-            <Link
-              href={`/chat/${project.id}`}
-              onClick={onOpen}
+            <article
               key={project.id}
               className={`ember-project-card border border-border rounded-[14px] overflow-hidden bg-card no-underline flex flex-col pointer-fine:hover:border-input focus-visible:outline-offset-1 ${styles.card} spotlight-card relative isolate`}
               data-project-spotlight=""
             >
+              <Link
+                href={`/chat/${project.id}`}
+                onClick={onOpen}
+                className="spotlight-projectLink block flex-1 text-[inherit] no-underline [&:focus-visible]:outline-2 [&:focus-visible]:outline-solid [&:focus-visible]:outline-primary [&:focus-visible]:outline-offset-[-3px] [&:focus-visible]:rounded-[8px]"
+              >
                 {!compact && (
                   <div className="ember-project-cover h-40 bg-secondary flex items-center justify-center text-accent-foreground">
                     <PanelsTopLeft size={55} strokeWidth={1} />
@@ -173,7 +219,18 @@ export function ProjectCollection({
                       : "Continue in workspace"}
                   </small>
                 </div>
-            </Link>
+              </Link>
+              <button
+                type="button"
+                className="spotlight-deleteButton inline-flex items-center justify-center gap-1.5 self-end min-h-11 py-2 px-4 text-muted-foreground text-[12px] cursor-pointer [&:hover]:text-foreground [&:disabled]:opacity-50 [&:disabled]:cursor-wait [&:focus-visible]:outline-2 [&:focus-visible]:outline-solid [&:focus-visible]:outline-primary [&:focus-visible]:outline-offset-[-3px] [&:focus-visible]:rounded-[8px]"
+                aria-label={`Delete ${project.title}`}
+                disabled={deletingId !== null}
+                onClick={() => void deleteProject(project)}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                {deletingId === project.id ? "Deleting…" : "Delete"}
+              </button>
+            </article>
           ))}
         </div>
       )}

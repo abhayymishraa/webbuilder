@@ -10,26 +10,50 @@ from sqlalchemy import delete, select, func, or_
 from db.base import AsyncSessionLocal
 from db.models import Chat, ProjectRevision, Run, RunEvent, StorageUsage, StorageDeletion
 from .events import archive_run
-from .persistence import PROJECTS, archive_slots, promote, revision_bytes
+from .persistence import PROJECTS, archive_slots, promote, revision_bytes, wait_for_uploads
 from .storage import storage_call, StorageError
 
 logger = logging.getLogger('webbuilder.runs')
+CLEANUP_TIMEOUT = 10
+
+
+async def attempt_cleanup(action):
+    """Bound the request wait; durable storage/runtime records survive failures."""
+    try:
+        async with asyncio.timeout(CLEANUP_TIMEOUT):
+            return await action
+    except Exception as exc:
+        logger.warning('Project cleanup deferred error_type=%s', type(exc).__name__)
+        return False
+
+
+async def cleanup_project_storage(keys):
+    completed = True
+    for key in keys:
+        try:
+            if key.startswith('legacy/'):
+                folder = PROJECTS / str(uuid.UUID(key.removeprefix('legacy/')))
+                if folder.exists():
+                    await asyncio.to_thread(shutil.rmtree, folder)
+            else:
+                await wait_for_uploads(key)
+                await storage_call('delete', key)
+        except (StorageError, OSError, ValueError) as exc:
+            logger.warning('Project storage cleanup deferred error_type=%s', type(exc).__name__)
+            completed = False
+            continue  # Retain the durable intent; one failure must not block other keys.
+        async with AsyncSessionLocal.begin() as db:
+            await db.execute(delete(StorageDeletion).where(StorageDeletion.object_key == key))
+    return completed
 
 
 async def maintain(service):
     now = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as db:
         deletions = list((await db.scalars(select(StorageDeletion.object_key)
-            .where(StorageDeletion.created_at < now - timedelta(days=1)).limit(100))).all())
+            .order_by(StorageDeletion.created_at, StorageDeletion.object_key).limit(100))).all())
     for key in deletions:
-        if key.startswith('legacy/'):
-            folder = PROJECTS / str(uuid.UUID(key.removeprefix('legacy/')))
-            if folder.exists():
-                await asyncio.to_thread(shutil.rmtree, folder)
-        else:
-            await storage_call('delete', key)
-        async with AsyncSessionLocal.begin() as db:
-            await db.execute(delete(StorageDeletion).where(StorageDeletion.object_key == key))
+        await attempt_cleanup(cleanup_project_storage([key]))
     busy = {r.chat_id for r in service.active.values()} | service.opening
     async with AsyncSessionLocal() as db:
         pending = list((await db.scalars(select(ProjectRevision).where(ProjectRevision.status == 'pending')

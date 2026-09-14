@@ -61,7 +61,7 @@ async def archive_run(run_id):
         raise StorageError('Run diagnostic archive exceeds 1 MiB')
     archive = gzip.compress(body, mtime=0)
     key = f'logs/{run_id}.jsonl.gz'
-    await put_object(key, archive, 'application/gzip')
+    await put_object(key, archive, 'application/gzip', chat_id=run.chat_id)
     # Confirm bytes before allowing expanded DB diagnostics to be pruned later.
     stored_sha256 = hashlib.sha256(await read_object(key, len(archive))).hexdigest()
     archive_sha256 = hashlib.sha256(archive).hexdigest()

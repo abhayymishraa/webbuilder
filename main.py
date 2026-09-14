@@ -16,6 +16,7 @@ from agent.archive import safe_path
 from agent.persistence import archive_slots, ensure_revision, revision_bytes, read_object
 from agent.storage import StorageError
 from agent.events import run_events
+from agent.maintenance import attempt_cleanup, cleanup_project_storage
 from auth.router import router
 from auth.social import social_router, configure_sessions
 from db.models import User, Chat, Message, Run, ProjectRevision, StorageDeletion
@@ -133,8 +134,9 @@ async def create_run(id: str, payload: ChatPayload, current_user: User = Depends
     return await agent_service.admit(current_user.id, payload.prompt, id)
 
 
-async def owned_chat(id: str, user: User, db: AsyncSession):
-    chat = await db.scalar(select(Chat).where(Chat.id == id, Chat.user_id == user.id))
+async def owned_chat(id: str, user: User, db: AsyncSession, *, for_update=False):
+    query = select(Chat).where(Chat.id == id, Chat.user_id == user.id)
+    chat = await db.scalar(query.with_for_update() if for_update else query)
     if not chat:
         raise HTTPException(404, "Project not found")
     return chat
@@ -297,18 +299,28 @@ async def list_user_projects(
 @app.delete("/projects/{id}")
 async def delete_project(id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     async with agent_service.admission:
-        await owned_chat(id, current_user, db)
+        # Checkpoint creation locks this same row before inserting its object key.
+        await owned_chat(id, current_user, db, for_update=True)
         if id in agent_service.opening or any(r.chat_id == id for r in agent_service.active.values()):
             raise HTTPException(409, 'Stop the active operation before deleting this project')
-        keys = list((await db.scalars(select(ProjectRevision.object_key).where(ProjectRevision.chat_id == id))).all())
-        keys += [f'logs/{run_id}.jsonl.gz' for run_id in (await db.scalars(select(Run.id).where(Run.chat_id == id))).all()]
-        keys.append(f'legacy/{id}')
+        keys = set((await db.scalars(select(ProjectRevision.object_key).where(ProjectRevision.chat_id == id))).all())
+        runs = (await db.execute(select(Run.id, Run.log_key).where(Run.chat_id == id))).all()
+        for run_id, log_key in runs:
+            keys.add(f'logs/{run_id}.jsonl.gz')  # Include archives still being uploaded.
+            if log_key:
+                keys.add(log_key)
+        keys.add(f'legacy/{id}')
         for key in keys:
             db.add(StorageDeletion(object_key=key))
         await db.execute(delete(Chat).where(Chat.id == id))
-        await db.commit()  # Revoke owned access before asynchronous object cleanup.
-    await agent_service.retire_sandbox(id)
-    return {'deleted': True, 'storage_cleanup': 'queued'}
+        await db.commit()  # Persist retry intent and revoke access before provider calls.
+    storage_done, sandbox_done = await asyncio.gather(
+        attempt_cleanup(cleanup_project_storage(keys)),
+        attempt_cleanup(agent_service.retire_sandbox(id)),
+    )
+    return {'deleted': True,
+            'storage_cleanup': 'completed' if storage_done else 'queued',
+            'sandbox_cleanup': 'completed' if sandbox_done else 'queued'}
 
 
 @app.websocket("/ws/{id}")
