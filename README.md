@@ -96,9 +96,9 @@ fresh local database; it does not contain your production accounts or projects.
 Open http://localhost:3000 and create a local account. AI generation still uses
 the configured OpenAI and E2B services.
 
-Use the `webbuilder-react-verified` E2B template (`xjklh0xbjh3wpgu0w306` for
-the existing deployment account), or build your own from `sandbox/Dockerfile`.
-The older template lacks Playwright under `/opt/webbuilder-checks` and cannot
+Use the `webbuilder-react-design-20260914` E2B template (`dwel3q1jkunk4chqfw7h`
+in the existing deployment account), or build your own from `sandbox/Dockerfile`.
+Templates without Playwright under `/opt/webbuilder-checks` cannot
 run this backend's browser checks. The runner checks browser tooling before
 calling the model and stops with a setup error if it is unavailable.
 After changing `.env`, stop and restart `make backend`; Uvicorn source reload
@@ -112,14 +112,23 @@ and verification status. Set a private `MINIO_SECRET_KEY` when creating `.env`.
 
 ## E2B template
 
-The sandbox contains Node, React, React Router, React Icons, Vite, Tailwind CSS,
-Python for binary-safe archives, and Playwright with headless Chromium. Its server starts on port 5173. No OpenAI or database
-credentials are copied into the sandbox template.
+The sandbox contains Node LTS, React JSX, React Router, React Icons, Vite,
+Tailwind CSS v4 and optional Motion for React. Python supports binary-safe
+archives; Playwright and headless Chromium live outside the application.
+Its server starts on port 5173. No OpenAI or database credentials are copied
+into the sandbox template.
+
+The [starter configuration](sandbox/README.md) documents exact versions,
+neutral theme tokens, animation imports and upgrade policy. Starter files and
+both npm lockfiles are checked in; `npm ci` replaces build-time scaffolding.
+Updates use current stable releases at template release time, never floating
+`latest` installs during a user's build. Generated apps only bundle Motion if
+they import it. Full component kits, charts and 3D libraries remain on demand.
 
 With the E2B CLI authenticated, build from its separate directory:
 
 ```bash
-e2b template create webbuilder-react-verified --path sandbox --dockerfile Dockerfile \
+e2b template create webbuilder-react-design-20260914 --path sandbox --dockerfile Dockerfile \
   --cmd 'cd /home/user/react-app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort' \
   --ready-cmd 'curl -fsS http://127.0.0.1:5173/ >/dev/null' \
   --cpu-count 1 --memory-mb 1024
@@ -127,7 +136,10 @@ e2b template create webbuilder-react-verified --path sandbox --dockerfile Docker
 
 Set `E2B_TEMPLATE_ID` to the resulting template ID. Existing templates remain
 available; building this template does not delete them.
-The verified template built on 12 September 2026 is `xjklh0xbjh3wpgu0w306`.
+The template built and smoke-checked on 14 September 2026 is
+`dwel3q1jkunk4chqfw7h`. See the [validation record](docs/e2b-starter-validation-2026-09-14.md).
+Restart the backend after changing its environment. Saved revisions retain their
+recorded template IDs and dependencies; they are not automatically upgraded.
 Older templates without Chromium cannot pass the new browser gate.
 
 ### Preview synchronization

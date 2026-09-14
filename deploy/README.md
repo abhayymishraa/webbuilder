@@ -55,6 +55,16 @@ Startup marks unfinished runs `interrupted`; it never replays mutations automati
 Restarting the API interrupts active generations. This setup does not provide
 zero-downtime failover, and adding workers would violate admission/ownership assumptions.
 
+## Upgrade the generated-app template
+
+The 14 September 2026 starter is `webbuilder-react-design-20260914`, template ID
+`dwel3q1jkunk4chqfw7h`. Its [validation record](../docs/e2b-starter-validation-2026-09-14.md)
+covers local builds and a disposable E2B sandbox, not a production release.
+Set `E2B_TEMPLATE_ID=dwel3q1jkunk4chqfw7h` in the VM's private runtime file,
+retain its old value for rollback, and restart the backend after current
+generations finish. Deploy the accompanying agent guidance with the backend.
+Saved revisions retain their recorded template IDs; this does not migrate them.
+
 ## Roll out the orchestration change
 
 The 12 September implementation has been checked locally with real OpenAI/E2B,
