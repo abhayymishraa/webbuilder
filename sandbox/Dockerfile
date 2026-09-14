@@ -14,4 +14,3 @@ COPY src/ /home/user/react-app/src/
 COPY vite.config.js index.html .oxlintrc.json .gitignore README.md ./
 RUN chown -R user:user /home/user/react-app && npm cache clean --force
 USER user
-WORKDIR /home/user/react-app
