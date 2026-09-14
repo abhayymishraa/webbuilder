@@ -7,6 +7,7 @@ import type { UserData } from "@/api";
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
 import { WS_URL } from "@/lib/utils";
 import apiClient from "@/api/client";
+import { getSessionId } from "@/api/session";
 import {
   ChatIdHeader,
   MessageBubble,
@@ -151,6 +152,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
     const connect = () => {
       if (disposed) return;
       const token = localStorage.getItem("auth_token");
+      const sessionId = getSessionId();
       if (!token) {
         router.push("/signin");
         return;
@@ -189,12 +191,24 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
           terminalRuns: terminalRuns.current,
         });
       };
-      ws.onclose = (event) => {
+      ws.onclose = async (event) => {
         if (disposed || wsRef.current !== ws) return;
         setWsConnected(false);
         if (event.code === 1008) {
+          // HTTP can renew an expired token; a socket policy close alone cannot
+          // distinguish expiry from a missing project or denied permission.
+          try {
+            await apiClient.get("/auth/me");
+            if (disposed || wsRef.current !== ws) return;
+            if (getSessionId() === sessionId && localStorage.getItem("auth_token") !== token) {
+              connect();
+              return;
+            }
+          } catch {
+            if (disposed || wsRef.current !== ws) return;
+          }
           setIsBuilding(false);
-          setError("Session expired or project unavailable. Sign in again.");
+          setError("Could not reconnect. Check your connection and project access, then reload.");
           return;
         }
         setError(

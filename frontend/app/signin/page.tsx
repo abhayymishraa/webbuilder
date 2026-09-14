@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { authApi } from "@/api";
+import { clearSession, getSessionId, saveSession } from "@/api/session";
 import { AuthFrame } from "@/components/ember/AuthFrame";
 import { SocialLogin } from "@/components/ember/SocialLogin";
 
@@ -25,10 +26,11 @@ export default function SignInPage() {
     const checkSession = async () => {
       try {
         const token = localStorage.getItem("auth_token");
+        const sessionId = getSessionId();
         if (token) {
           const user = await authApi.getCurrentUser();
           if (disposed) return;
-          if (localStorage.getItem("auth_token") === token) {
+          if (getSessionId() === sessionId) {
             try {
               localStorage.setItem("user_data", JSON.stringify(user));
             } catch {
@@ -57,13 +59,7 @@ export default function SignInPage() {
       // Call the login API
       const data = await authApi.login({ email, password });
 
-      // Validate response data
-      if (!data.access_token) {
-        throw new Error("No access token received");
-      }
-
-      // Store token in localStorage
-      localStorage.setItem("auth_token", data.access_token);
+      saveSession(data);
 
       // Fetch user data after login since login doesn't return it
       try {
@@ -87,8 +83,7 @@ export default function SignInPage() {
       setError(error instanceof Error ? error.message : "Failed to sign in");
       setIsLoading(false);
       // Clear any partial data on error
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("user_data");
+      clearSession();
     }
   };
 

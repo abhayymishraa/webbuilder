@@ -1,4 +1,6 @@
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
+import type { LoginResponse } from "./types.ts";
+import { clearSession, getSessionId, storeTokens } from "./session.ts";
 
 // API Base URL - change based on environment
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -12,11 +14,73 @@ export const apiClient = axios.create({
   timeout: 30000, // 30 seconds
 });
 
+type SessionRequest = InternalAxiosRequestConfig & {
+  sessionId?: string | null;
+  accessToken?: string | null;
+  retriedAfterRefresh?: boolean;
+};
+
+const publicAuthPaths = new Set([
+  "/auth/login", "/auth/register", "/auth/options", "/auth/refresh",
+  "/auth/oauth/exchange", "/auth/verification/confirm", "/auth/verification/request",
+]);
+let pendingRefresh: { sessionId: string; promise: Promise<void> } | null = null;
+
+function endSession(sessionId: string, destination = "/signin") {
+  if (getSessionId() !== sessionId) return;
+  clearSession();
+  if (window.location.pathname !== destination) window.location.replace(destination);
+}
+
+async function renewSession(sessionId: string) {
+  if (getSessionId() !== sessionId) throw new Error("Your session changed. Try again.");
+  if (pendingRefresh?.sessionId === sessionId) return pendingRefresh.promise;
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!refreshToken) {
+    endSession(sessionId);
+    throw new Error("Please sign in again to continue.");
+  }
+  const promise = (async () => {
+    try {
+      // Use Axios directly so refresh failures never enter the retry interceptor.
+      const { data } = await axios.post<LoginResponse>(`${API_BASE_URL}/auth/refresh`,
+        { refresh_token: refreshToken }, { timeout: 30000 });
+      if (getSessionId() !== sessionId) throw new Error("Your session changed. Try again.");
+      // Another tab may have renewed this session while this request was pending.
+      if (localStorage.getItem("refresh_token") !== refreshToken) return;
+      storeTokens(data);
+    } catch (error) {
+      if (getSessionId() === sessionId && localStorage.getItem("refresh_token") !== refreshToken) return;
+      if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
+        endSession(sessionId);
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+      // A network outage or server error must not erase valid credentials.
+      throw new Error("Could not renew your session. Please try again.");
+    }
+  })();
+  const pending = { sessionId, promise };
+  pendingRefresh = pending;
+  try {
+    await promise;
+  } finally {
+    if (pendingRefresh === pending) pendingRefresh = null;
+  }
+}
+
 // Request interceptor - Add auth token to requests
 apiClient.interceptors.request.use(
   (config) => {
+    if (publicAuthPaths.has(config.url || "")) return config;
+    const request = config as SessionRequest;
+    const sessionId = getSessionId();
+    if (request.retriedAfterRefresh && request.sessionId !== sessionId) {
+      throw new Error("Your session changed. Try again.");
+    }
     // Get token from localStorage
     const token = localStorage.getItem("auth_token");
+    request.sessionId = sessionId;
+    request.accessToken = token;
 
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -32,25 +96,31 @@ apiClient.interceptors.request.use(
 // Response interceptor - Handle errors globally
 apiClient.interceptors.response.use(
   (response) => {
+    const request = response.config as SessionRequest;
+    if (request.sessionId && request.sessionId !== getSessionId()) {
+      throw new Error("Your session changed. Try again.");
+    }
     return response;
   },
-  (error) => {
-    const detail = error.response?.data?.detail;
-    if (error.response?.status === 403 && typeof detail === "string" && detail.startsWith("Verify your email")) {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("user_data");
-      if (window.location.pathname !== "/verify-email") window.location.replace("/verify-email");
+  async (error) => {
+    const request = error.config as SessionRequest | undefined;
+    if (request?.sessionId && request.sessionId !== getSessionId()) {
+      throw new Error("Your session changed. Try again.");
     }
-    // Handle 401 Unauthorized - redirect to login
-    if (error.response?.status === 401) {
-      // Clear auth data
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("user_data");
-
-      // Redirect to signin if not already there
-      if (!window.location.pathname.includes("/signin")) {
-          // Reset the document after clearing authentication, including cached account state.
-          window.location.replace("/signin");
+    const detail = error.response?.data?.detail;
+    if (request?.sessionId && error.response?.status === 403 && typeof detail === "string" && detail.startsWith("Verify your email")) {
+      endSession(request.sessionId, "/verify-email");
+    }
+    if (error.response?.status === 401 && request?.sessionId && request.accessToken) {
+      if (request.retriedAfterRefresh) {
+        if (localStorage.getItem("auth_token") === request.accessToken) endSession(request.sessionId);
+      } else {
+        request.retriedAfterRefresh = true;
+        // A late 401 may belong to a token another request has already renewed.
+        if (localStorage.getItem("auth_token") === request.accessToken) {
+          await renewSession(request.sessionId);
+        }
+        return apiClient.request(request);
       }
     }
 

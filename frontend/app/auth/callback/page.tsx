@@ -1,4 +1,5 @@
 "use client";
+import { saveSession } from "@/api/session";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,8 +34,7 @@ export default function OAuthCallbackPage() {
     }
     exchange.current?.then(async session => {
       if (disposed) return;
-      localStorage.setItem("auth_token", session.access_token);
-      localStorage.removeItem("user_data");
+      saveSession(session);
       const user = await authApi.getCurrentUser();
       if (disposed) return;
       localStorage.setItem("user_data", JSON.stringify(user));

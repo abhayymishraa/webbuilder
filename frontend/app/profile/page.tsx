@@ -1,4 +1,5 @@
 "use client";
+import { clearSession } from "@/api/session";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -46,7 +47,7 @@ export default function ProfilePage() {
   }, [router, attempt]);
 
   function signOut() {
-    localStorage.removeItem("auth_token"); localStorage.removeItem("user_data"); router.replace("/signin");
+    clearSession(); router.replace("/signin");
   }
 
   async function save(event: React.FormEvent) {

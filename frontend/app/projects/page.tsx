@@ -1,4 +1,5 @@
 "use client";
+import { clearSession } from "@/api/session";
 
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
 import { useEffect, useState } from "react";
@@ -37,8 +38,7 @@ export default function ProjectsPage() {
     };
   }, [router]);
   function signOut() {
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user_data");
+    clearSession();
     router.push("/");
   }
   return (

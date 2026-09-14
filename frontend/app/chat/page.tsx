@@ -1,4 +1,5 @@
 "use client";
+import { clearSession } from "@/api/session";
 
 import { WorkspaceSidebar } from "@/components/ember/WorkspaceSidebar";
 import { useState, useEffect, useRef } from "react";
@@ -64,8 +65,7 @@ export default function ChatPage() {
   }, [router]);
 
   const handleSignOut = () => {
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("user_data");
+    clearSession();
     setIsAuthenticated(false);
     setUserData(null);
     router.push("/");

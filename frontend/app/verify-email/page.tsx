@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { authApi } from "@/api";
+import { saveSession } from "@/api/session";
 import { AuthFrame } from "@/components/ember/AuthFrame";
 import { Input } from "@/components/ui/input";
 
@@ -27,8 +28,7 @@ export default function VerifyEmailPage() {
     setBusy(true); setError("");
     try {
       const session = await authApi.confirmVerification(token);
-      localStorage.setItem("auth_token", session.access_token);
-      localStorage.removeItem("user_data");
+      saveSession(session);
       const user = await authApi.getCurrentUser();
       localStorage.setItem("user_data", JSON.stringify(user));
       router.replace("/profile");
