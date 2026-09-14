@@ -72,7 +72,7 @@ export default function ProjectsPage() {
             </div>
             <Link
               href="/chat"
-              className={buttonVariants({ variant: "default" })}
+              className={buttonVariants({ variant: "default", className: "md:hidden" })}
             >
               <Plus size={17} />
               New project

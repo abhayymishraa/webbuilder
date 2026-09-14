@@ -7,6 +7,7 @@ from collections import Counter
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from .prompts import SYSTEM_PROMPT
 from .tools import WorkspaceTools, list_files
 from .context import CONTEXT_RULES, choose_files
@@ -25,6 +26,21 @@ class VerificationError(Exception):
 
 class SandboxSetupError(VerificationError):
     pass
+
+
+def estimate_input_tokens(model, messages, tool_schema: str) -> tuple[int, str]:
+    try:
+        # LangChain counts message/tool-call text but not bound tool definitions.
+        count = model.get_num_tokens_from_messages(messages) + model.get_num_tokens(tool_schema)
+        estimator = 'tokenizer'
+    except (NotImplementedError, ValueError):
+        # Unsupported tokenizers or special-token literals must still have a bound.
+        count = sum(len(str(m.content).encode()) +
+                    len(str(getattr(m, 'tool_calls', '')).encode()) + 100 for m in messages)
+        count += len(tool_schema.encode())
+        estimator = 'bytes_fallback'
+    # Allow for provider-specific message and tool framing; this is an estimate.
+    return count + 2000, estimator
 
 
 async def check_browser(workspace: WorkspaceTools, *, preflight: bool = False) -> dict:
@@ -85,7 +101,9 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
                              'truncated': len(encoded) > 4000}
         except Exception:
             initial[path] = {'error': 'Unable to read; inspect with tools before editing'}
-    bound = model.bind_tools(list(tools.values()), parallel_tool_calls=False)
+    formatted_tools = [convert_to_openai_tool(t) for t in tools.values()]
+    bound = model.bind_tools(formatted_tools, parallel_tool_calls=False)
+    tool_schema = json.dumps(formatted_tools, ensure_ascii=False)
     messages = [SystemMessage(content=SYSTEM_PROMPT + '\n' + CONTEXT_RULES + skill_prompt +
         '\nInitial files may be excerpts. Read complete files before replacing them.'),
         HumanMessage(content=json.dumps({'project_context': context, 'request': prompt,
@@ -99,15 +117,28 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
         # Bound growing conversation inputs as well as measured provider usage.
         if sum(len(str(m.content)) for m in messages) > 180_000:
             raise RunLimitError('Context budget reached; request a smaller change')
-        estimated_input = sum(len(str(m.content).encode()) + len(str(getattr(m, 'tool_calls', '')).encode()) + 100 for m in messages) + sum(len(json.dumps(t.args).encode()) for t in tools.values()) + 2000
-        if metrics.get('total_tokens', 0) + metrics.get('reserved_tokens', 0) + estimated_input + 8192 >= token_budget:
+        estimated_input, estimator = estimate_input_tokens(model, messages, tool_schema)
+        # Keep room for a useful response without always demanding the full 8k output ceiling.
+        output_limit = min(8192, token_budget - metrics.get('total_tokens', 0) -
+                           metrics.get('reserved_tokens', 0) - estimated_input - 1)
+        if output_limit < 1024:
+            metrics['token_budget'] = {'stage': 'preflight', 'limit': token_budget,
+                'used': metrics.get('total_tokens', 0), 'reserved': metrics.get('reserved_tokens', 0),
+                'estimated_input': estimated_input, 'output_reserve': 1024, 'estimator': estimator}
             raise RunLimitError('Token budget reached')
-        response = await bound.ainvoke(messages)
+        response = await bound.ainvoke(messages, max_tokens=output_limit)
         usage = response.usage_metadata or {}
         for key in ('input_tokens', 'output_tokens', 'total_tokens'):
             metrics[key] = metrics.get(key, 0) + usage.get(key, 0)
         if metrics.get('total_tokens', 0) + metrics.get('reserved_tokens', 0) >= token_budget:
+            metrics['token_budget'] = {'stage': 'provider_usage', 'limit': token_budget,
+                'used': metrics.get('total_tokens', 0), 'reserved': metrics.get('reserved_tokens', 0)}
             raise RunLimitError('Token budget reached')
+        metadata = response.response_metadata
+        if (metadata.get('incomplete_details') or {}).get('reason') == 'max_output_tokens' or metadata.get('finish_reason') == 'length':
+            metrics['token_budget'] = {'stage': 'model_output', 'limit': token_budget,
+                'used': metrics.get('total_tokens', 0), 'output_limit': output_limit}
+            raise RunLimitError('Model output budget reached; request a smaller change')
         messages.append(response)
         if response.invalid_tool_calls:
             raise VerificationError('Model returned an invalid tool call')

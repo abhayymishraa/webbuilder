@@ -1,4 +1,24 @@
 @layer components {
+  .buildTrace[open][data-pointer-reveal="true"] > .buildDetails {
+    animation: details-reveal 120ms var(--ease-out);
+  }
+  .buildTrace[data-pointer-reveal="false"] > summary > svg {
+    transition: none;
+  }
+  @keyframes details-reveal {
+    from { opacity: 0.6; }
+    to { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .buildTrace[open][data-pointer-reveal="true"] > .buildDetails {
+      animation-name: details-reveal-reduced;
+      animation-duration: 80ms;
+    }
+  }
+  @keyframes details-reveal-reduced {
+    from { opacity: 0.85; }
+    to { opacity: 1; }
+  }
   .pixels {
     width: 13px;
     height: 13px;

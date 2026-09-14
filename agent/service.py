@@ -307,7 +307,7 @@ class Service:
         live.events.append(event)
         self.publish(live.chat_id, event)
         logger.info(json.dumps({'run_id': live.id, 'status': status, **{
-            key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'stage', 'sandbox_cleanup')}}))
+            key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'stage', 'sandbox_cleanup', 'token_budget')}}))
 
     async def execute(self, live):
         started = time.monotonic()

@@ -53,4 +53,5 @@ export interface Project {
   title: string;
   app_url: string | null;
   created_at: string;
+  updated_at?: string;
 }

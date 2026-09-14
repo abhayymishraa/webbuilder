@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useRef, useState, useId, type PointerEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -30,16 +30,42 @@ export function ProjectCollection({ compact = false, onOpen }: {
   const id = useId();
   const searchRef = useRef<HTMLInputElement>(null);
   const deleteTrigger = useRef<HTMLButtonElement | null>(null);
+  const spotlightEnabled = useRef(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<ProjectSort>("newest");
+  const [sort, setSort] = useState<ProjectSort>("recent");
   const [period, setPeriod] = useState<ProjectPeriod>("all");
   const [attempt, setAttempt] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
+  // Keep the description intact while Radix finishes the closing animation.
+  const [deleteTitle, setDeleteTitle] = useState("");
+  const [dialogMotion, setDialogMotion] = useState<"open" | "closed" | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
+
+  useEffect(() => {
+    if (compact) return;
+    const media = window.matchMedia("(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)");
+    const sync = () => { spotlightEnabled.current = media.matches; };
+    sync();
+    media.addEventListener("change", sync);
+    return () => {
+      spotlightEnabled.current = false;
+      media.removeEventListener("change", sync);
+    };
+  }, [compact]);
+
+  // Adapted from React Bits SpotlightCard; see REACT-BITS-LICENSE.
+  // https://github.com/DavidHDev/react-bits/blob/3a1c7f2f9f94ed833934ab5c2635760b9e644583/src/ts-default/Components/SpotlightCard/SpotlightCard.tsx
+  function moveSpotlight(event: PointerEvent<HTMLAnchorElement>) {
+    if (!spotlightEnabled.current || event.pointerType !== "mouse") return;
+    const card = event.currentTarget;
+    const bounds = card.getBoundingClientRect();
+    card.style.setProperty("--spotlight-x", `${event.clientX - bounds.left}px`);
+    card.style.setProperty("--spotlight-y", `${event.clientY - bounds.top}px`);
+  }
 
   async function deleteProject() {
     if (!pendingDelete || deletingId) return;
@@ -78,11 +104,11 @@ export function ProjectCollection({ compact = false, onOpen }: {
 
   const visible = filterProjects(projects, query, sort, period);
   const narrowed = Boolean(query.trim()) || period !== "all";
-  const changed = narrowed || sort !== "newest";
+  const changed = narrowed || sort !== "recent";
   function resetFilters() {
     setQuery("");
     setPeriod("all");
-    setSort("newest");
+    setSort("recent");
     searchRef.current?.focus();
   }
 
@@ -112,6 +138,7 @@ export function ProjectCollection({ compact = false, onOpen }: {
             <span className="mb-2 block">Sort by</span>
             <div className="relative">
             <select aria-label="Sort projects" value={sort} onChange={(event) => setSort(event.target.value as ProjectSort)} className="h-11 w-full appearance-none rounded-[8px] border border-input bg-card py-2 pl-3 pr-10 text-base text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]">
+              <option value="recent">Recently updated</option>
               <option value="newest">Newest created</option>
               <option value="oldest">Oldest created</option>
               <option value="name-asc">Name A–Z</option>
@@ -148,7 +175,10 @@ export function ProjectCollection({ compact = false, onOpen }: {
             <article key={project.id} className={`flex min-w-0 flex-col ${compact ? "rounded-xl border border-border bg-card" : "h-full"}`}>
               <div className={`relative isolate flex min-w-0 flex-1 ${compact ? "" : styles.card}`}>
               {!compact && <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 -translate-x-0.5 translate-y-1.5 rounded-[24px] border border-foreground/25 bg-secondary" />}
-              <Link href={`/chat/${project.id}`} onClick={onOpen} className={`relative flex min-w-0 flex-1 flex-col text-foreground no-underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4 ${compact ? "gap-3 rounded-xl p-4" : `${styles.paper} min-h-72 rounded-[24px] border border-foreground/55 bg-card p-6 sm:p-8`}`}>
+              <Link href={`/chat/${project.id}`} onClick={onOpen}
+                onPointerEnter={compact ? undefined : moveSpotlight}
+                onPointerMove={compact ? undefined : moveSpotlight}
+                className={`relative isolate flex min-w-0 flex-1 flex-col text-foreground no-underline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4 ${compact ? "gap-3 rounded-xl p-4" : `${styles.paper} min-h-72 rounded-[24px] border border-foreground/55 bg-card p-6 sm:p-8`}`}>
                 {!compact && <div className="flex items-center justify-between gap-3 text-accent-foreground"><span className="font-mono text-xs uppercase tracking-widest">Project</span><ArrowUpRight size={22} strokeWidth={1.5} aria-hidden="true" /></div>}
                 <h2 className={`wrap-anywhere ${compact ? "text-base font-medium" : "flex-1 py-8 font-mono text-[clamp(24px,2.4vw,30px)] font-medium leading-[1.25] tracking-[-.04em]"}`}>{project.title}</h2>
                 <span className={`flex items-center gap-2 text-muted-foreground ${compact ? "text-xs" : "font-mono text-xs uppercase tracking-wide"}`}><span aria-hidden="true" className="text-accent-foreground">&gt;</span> Open workspace</span>
@@ -156,7 +186,7 @@ export function ProjectCollection({ compact = false, onOpen }: {
               </div>
               <div className={`flex min-h-12 items-center justify-between gap-2 px-2 ${compact ? "" : "mt-2"}`}>
                 <p className="text-xs text-muted-foreground">Created {createdLabel(project.created_at)}</p>
-                <Button variant="utility" aria-label={`Delete ${project.title}`} disabled={deletingId !== null} onClick={(event) => { deleteTrigger.current = event.currentTarget; setDeleteError(""); setPendingDelete(project); }} className="shrink-0 px-2">
+                <Button variant="utility" aria-label={`Delete ${project.title}`} disabled={deletingId !== null} onClick={(event) => { deleteTrigger.current = event.currentTarget; setDeleteError(""); setDeleteTitle(project.title); setDialogMotion(event.detail > 0 ? "open" : null); setPendingDelete(project); }} className="shrink-0 px-2">
                   <Trash2 size={14} aria-hidden="true" /><span className={compact ? "" : "sr-only"}>Delete</span>
                 </Button>
               </div>
@@ -166,11 +196,11 @@ export function ProjectCollection({ compact = false, onOpen }: {
       )}
       <Dialog.Root open={pendingDelete !== null} onOpenChange={(open) => { if (!open && !deletingId) setPendingDelete(null); }}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/65" />
-          <Dialog.Content onCloseAutoFocus={(event) => { event.preventDefault(); (deleteTrigger.current?.isConnected ? deleteTrigger.current : searchRef.current)?.focus(); }} className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 text-foreground shadow-xl">
+          <Dialog.Overlay data-motion={dialogMotion} onPointerDown={() => setDialogMotion("closed")} className={`${styles.dialogOverlay} fixed inset-0 z-50 bg-black/65`} />
+          <Dialog.Content data-motion={dialogMotion} onPointerDownCapture={() => setDialogMotion("closed")} onKeyDownCapture={() => setDialogMotion(null)} onCloseAutoFocus={(event) => { event.preventDefault(); (deleteTrigger.current?.isConnected ? deleteTrigger.current : searchRef.current)?.focus(); }} className={`${styles.dialogContent} fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 text-foreground shadow-xl`}>
             <Dialog.Title className="text-xl font-medium">Delete project?</Dialog.Title>
             <Dialog.Description className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              <span className="wrap-anywhere font-medium text-foreground">{pendingDelete?.title}</span> and its chat, saved files, and run history will be permanently removed. Its preview will be stopped. This cannot be undone in WebBuilder.
+              <span className="wrap-anywhere font-medium text-foreground">{deleteTitle}</span> and its chat, saved files, and run history will be permanently removed. Its preview will be stopped. This cannot be undone in WebBuilder.
             </Dialog.Description>
             {deleteError && <p role="alert" className="mt-4 text-sm text-destructive">{deleteError}</p>}
             <div className="mt-6 flex flex-wrap justify-end gap-3">

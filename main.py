@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import asyncio
 from anyio import CancelScope
@@ -10,7 +11,7 @@ import io
 import zipfile
 from fastapi import Depends
 
-from sqlalchemy import select, text, delete
+from sqlalchemy import select, text, delete, func
 from agent.service import agent_service
 from agent.archive import safe_path
 from agent.persistence import archive_slots, ensure_revision, revision_bytes, read_object
@@ -286,13 +287,24 @@ async def list_user_projects(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """List all Projects per user"""
-    result = await db.execute(
-        select(Chat).where(Chat.user_id == current_user.id)
+    """List projects by the latest accepted prompt, falling back to creation."""
+    last_prompt = (
+        select(func.max(Message.created_at))
+        .where(Message.chat_id == Chat.id, Message.role == "user")
+        .correlate(Chat)
+        .scalar_subquery()
     )
-    projects = result.scalars().all()
+    updated_at = func.coalesce(last_prompt, Chat.created_at).label("updated_at")
+    result = await db.execute(
+        select(Chat, updated_at)
+        .where(Chat.user_id == current_user.id)
+        .order_by(updated_at.desc(), Chat.id)
+    )
     return {
-        "projects" : projects
+        "projects": [
+            {**jsonable_encoder(chat), "updated_at": jsonable_encoder(updated)}
+            for chat, updated in result.all()
+        ]
     }
 
 

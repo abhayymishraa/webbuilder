@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Pause, Play } from "lucide-react";
 import { ArchitectureTilt } from "./ArchitectureTilt";
 import styles from "./studies.module.css";
 
@@ -45,7 +44,6 @@ function WirePlate({ y, width = 120 }: { y: number; width?: number }) {
 
 export function ArchitectureStudy() {
   const [active, setActive] = useState(1);
-  const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(false);
   const section = useRef<HTMLElement>(null);
   const id = useId();
@@ -74,7 +72,7 @@ export function ArchitectureStudy() {
     <section
       ref={section}
       id="how-it-works"
-      data-motion-running={visible && !paused}
+      data-motion-running={visible}
       className={`studies-section relative max-w-270 m-auto scroll-mt-6 [&_h1]:text-[clamp(32px,_3.5vw,_44px)] [&_h1]:font-normal [&_h1]:leading-[1.1] [&_h1]:tracking-[-.045em] [&_h1]:m-0 [&_h1]:text-balance [&_h2]:text-[clamp(32px,_3.5vw,_44px)] [&_h2]:font-normal [&_h2]:leading-[1.1] [&_h2]:tracking-[-.045em] [&_h2]:m-0 [&_h2]:text-balance [&_em]:[font-family:"Iowan_Old_Style",_"Palatino_Linotype",_"Book_Antiqua",_Georgia,_serif] [&_em]:font-normal [&_em]:tracking-[-.045em] [&_em]:leading-[1.17] max-md:[&_h1]:text-[clamp(30px,_7.5vw,_38px)] max-md:[&_h2]:text-[clamp(30px,_7.5vw,_38px)] studies-architecture min-h-132.5 grid grid-cols-[1.1fr_.9fr] items-center gap-8 py-9 px-[5%] max-md:grid-cols-[1fr] max-md:py-7.5 max-md:px-6 max-md:min-h-auto max-md:gap-4 ${styles.architectureHero} studies-architectureHero [&_h1]:max-w-[15ch] [&_h1]:text-[clamp(36px,_4.2vw,_54px)] [&_h1]:font-medium [&_h1]:leading-[1.08] [&_.studies-archCopy_h1_em]:text-[inherit] [&_.studies-archCopy_h1_em]:p-0 [&_.studies-kicker]:font-mono [&_.studies-intro]:text-[16px] [&_.studies-intro]:my-6 [&_.studies-layerDescription]:max-w-105 [&_.studies-layerDescription]:min-h-0 [&_.studies-layerDescription]:text-[14px] [&_.studies-archVisual]:w-[min(100%,_clamp(200px,_44svh,_360px))] max-md:[&_h1]:text-[clamp(32px,_8vw,_44px)] max-md:[&_.studies-intro]:text-[14px] max-md:[&_.studies-intro]:my-4 max-md:[&_.studies-layerDescription]:text-[13px] max-md:[&_.studies-archVisual]:w-[min(100%,_clamp(160px,_22svh,_200px))] [@media(min-width:_600px)_and_(max-width:_767px)_and_(max-height:_500px)]:[&_.studies-archVisual]:w-[min(100%,_200px)]`}
       aria-labelledby={`${id}-heading`}
     >
@@ -113,21 +111,8 @@ export function ArchitectureStudy() {
         >
           {layers[active].description}
         </p>
-        <button
-          type="button"
-          className="studies-motionToggle hidden [@media(prefers-reduced-motion:_no-preference)]:inline-flex [@media(prefers-reduced-motion:_no-preference)]:items-center [@media(prefers-reduced-motion:_no-preference)]:gap-2 [@media(prefers-reduced-motion:_no-preference)]:min-h-11 [@media(prefers-reduced-motion:_no-preference)]:mt-2 [@media(prefers-reduced-motion:_no-preference)]:p-0 [@media(prefers-reduced-motion:_no-preference)]:border-0 [@media(prefers-reduced-motion:_no-preference)]:bg-transparent [@media(prefers-reduced-motion:_no-preference)]:text-[var(--study-muted)] [@media(prefers-reduced-motion:_no-preference)]:text-[12px]! pointer-fine:[&:hover]:text-[var(--study-accent)]"
-          onClick={() => setPaused((value) => !value)}
-          aria-controls={`${id}-diagram`}
-        >
-          {paused ? (
-            <Play size={14} aria-hidden="true" />
-          ) : (
-            <Pause size={14} aria-hidden="true" />
-          )}
-          {paused ? "Resume animation" : "Pause animation"}
-        </button>
       </div>
-      <ArchitectureTilt enabled={visible && !paused}>
+      <ArchitectureTilt enabled={visible}>
         <svg
           id={`${id}-diagram`}
           className="studies-archSvg block w-full h-auto aspect-[2_/_3] [overflow:visible]"

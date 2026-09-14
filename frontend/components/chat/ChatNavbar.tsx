@@ -1,6 +1,6 @@
 import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
-import { FolderOpen, LogOut, Plus, UserRound } from "lucide-react";
+import { LogOut, Plus } from "lucide-react";
 import type { UserData } from "@/api";
 import { Brand } from "@/components/ember/Brand";
 import { ThemeToggle } from "@/components/ember/ThemeProvider";
@@ -23,21 +23,6 @@ export function ChatNavbar({
         <ThemeToggle />
         {isAuthenticated ? (
           <>
-            <Link
-              href="/projects"
-              className="ember-text-link inline-flex items-center gap-2 text-[13px] bg-transparent border-0 text-secondary-foreground no-underline pointer-fine:hover:text-foreground ember-projects-link max-[381px]:[&_span]:hidden max-[381px]:min-w-9 max-[381px]:min-h-10 max-[381px]:justify-center"
-              aria-label="Projects"
-            >
-              <FolderOpen size={16} />
-              <span>Projects</span>
-            </Link>
-            <Link
-              href="/profile"
-              className={buttonVariants({ variant: "icon" })}
-              aria-label="Your profile"
-            >
-              <UserRound size={18} />
-            </Link>
             <div className="ember-account flex items-center gap-3 text-[12px] text-muted-foreground min-w-0 [&>span:first-child]:max-w-55 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-ellipsis [&>span:first-child]:whitespace-nowrap max-[1101px]:[&>span:first-child]:hidden max-md:hidden">
               {userData && (
                 <>

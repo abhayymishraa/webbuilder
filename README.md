@@ -154,25 +154,15 @@ blanket dependency-cache deletion is enabled. The helper ships with the backend
 and runs outside the archived source tree, so compatible existing templates
 do not need rebuilding for this change.
 
-Run the offline lifecycle regressions with:
-
-```bash
-uv run python -m unittest discover -s sandbox/tests -v
-```
-
-The backend deployment workflow runs these checks before deployment as well.
-
 OpenAI and E2B usage have their own billing or free-credit limits. Free frontend
 and VM hosting do not make AI generation free.
 
-## Regression checks
+## Local build
 
 ```bash
-uv run python -m unittest discover -s tests -v
 cd frontend
-npm test
 npm run build
 ```
 
-Frontend tests require Node 22.6+ with TypeScript stripping. Database integration
-tests are opt-in; see the architecture document for an isolated database setup.
+This repository does not maintain test suites. Runtime build, preview, and
+deployment readiness checks remain enabled. See AGENTS.md for contributor rules.

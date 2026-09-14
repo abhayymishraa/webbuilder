@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 
 // Interaction patterns adapted from Beautiful UI, MIT © 2026 Shane Levine.
 // See ../ember/BEAUTIFUL-UI-LICENSE. All progress comes from recorded run events.
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CheckIcon,
@@ -421,6 +421,28 @@ export function RunActivity({
   message: Message;
   connected: boolean;
 }) {
+  const completionIcon = useRef<SVGSVGElement>(null);
+  const [pointerReveal, setPointerReveal] = useState(false);
+  const previousRun = useRef({ id: message.id, status: message.run_status });
+
+  useEffect(() => {
+    const previous = previousRun.current;
+    previousRun.current = { id: message.id, status: message.run_status };
+    // Celebrate only a live transition, never an already-completed history entry.
+    if (previous.id !== message.id || previous.status !== "running" || message.run_status !== "succeeded") return;
+    const icon = completionIcon.current;
+    if (!icon?.animate) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const easing = getComputedStyle(icon).getPropertyValue("--ease-out").trim();
+    const animation = icon.animate(
+      reduced
+        ? [{ opacity: 0.6 }, { opacity: 1 }]
+        : [{ opacity: 0, transform: "scale(0.94)" }, { opacity: 1, transform: "scale(1)" }],
+      { duration: reduced ? 80 : 180, easing: easing || "cubic-bezier(0.23, 1, 0.32, 1)" },
+    );
+    return () => animation.cancel();
+  }, [message.id, message.run_status]);
+
   const running = message.run_status === "running";
   const failed =
     message.run_status &&
@@ -455,7 +477,7 @@ export function RunActivity({
           ) : running || message.run_status === "cancelled" ? (
             <ClockIcon aria-hidden="true" />
           ) : (
-            <CheckIcon aria-hidden="true" />
+            <CheckIcon ref={completionIcon} className="origin-center [transform-box:fill-box]" aria-hidden="true" />
           )}
           {label}
         </span>
@@ -465,19 +487,20 @@ export function RunActivity({
           running={running}
         />
       </div>
-      {steps.length > 0 && (
-        <details className="transcript-trace [&_li[data-failed=true]]:text-destructive [&>summary]:list-none [&>summary]:flex [&>summary]:items-center [&>summary]:gap-2 [&>summary]:cursor-pointer [&>summary]:min-h-11 [&>summary]:text-[12px] [&>summary::-webkit-details-marker]:hidden [&[open]>summary>.transcript-chevron]:rotate-90 [&>summary]:text-muted-foreground [&_ol]:list-none [&_ol]:pt-0 [&_ol]:pr-0 [&_ol]:pb-2 [&_ol]:pl-[7px] [&_ol]:m-0 [&_li]:flex [&_li]:items-baseline [&_li]:gap-3 [&_li]:py-1.5 [&_li]:px-0 [&_li]:text-muted-foreground [&_li]:text-[12px] [&_li]:wrap-anywhere [&_li>div]:min-w-0 [&_li>div]:flex-1 [&_p]:m-0">
-          <summary>
+      {(steps.length > 0 || calls.length > 0) && (
+        <details data-pointer-reveal={pointerReveal} className={`${styles.buildTrace} transcript-trace [&>summary]:list-none [&>summary]:flex [&>summary]:items-center [&>summary]:gap-2 [&>summary]:cursor-pointer [&>summary]:min-h-11 [&>summary]:text-[12px] [&>summary::-webkit-details-marker]:hidden [&[open]>summary>.transcript-chevron]:rotate-90 [&>summary]:text-muted-foreground`}>
+          <summary onClick={(event) => setPointerReveal(event.detail > 0)} onKeyDown={() => setPointerReveal(false)}>
             <ChevronRightIcon
               className="transcript-chevron w-[13px] shrink-0 [transition:transform_.18s_ease-out] motion-reduce:[transition:none]"
               aria-hidden="true"
             />
             Build steps{" "}
             <span className="transcript-caption font-mono text-[11px] text-muted-foreground">
-              {steps.length}
+              {steps.length || calls.length}
             </span>
           </summary>
-          <ol>
+          <div className={styles.buildDetails}>
+          <ol className="list-none pt-0 pr-0 pb-2 pl-[7px] m-0 [&>li]:flex [&>li]:items-baseline [&>li]:gap-3 [&>li]:py-1.5 [&>li]:px-0 [&>li]:text-muted-foreground [&>li]:text-[12px] [&>li]:wrap-anywhere [&>li[data-failed=true]]:text-destructive [&>li>div]:min-w-0 [&>li>div]:flex-1 [&_p]:m-0">
             {steps.map((item) => (
               <li key={item.id} data-failed={item.ok === false}>
                 <span className="transcript-stageDot [flex:0_0_4px] h-1 bg-current rounded-full" />
@@ -493,9 +516,10 @@ export function RunActivity({
               </li>
             ))}
           </ol>
+          {calls.length > 0 && <ToolList calls={calls} />}
+          </div>
         </details>
       )}
-      {calls.length > 0 && <ToolList calls={calls} />}
     </div>
   );
 }

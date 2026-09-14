@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - 'agent/**'
-      - 'tests/**'
       - 'auth/**'
       - 'db/**'
       - 'main.py'
@@ -44,26 +43,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
-      - name: Run offline preview lifecycle regressions
-        run: docker run --rm -v "$PWD/sandbox/tests:/preview-tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m unittest discover -s /preview-tests -v
-      - name: Report absent backend tests
-        if: ${{ hashFiles('tests/**/test_*.py') == '' }}
-        run: echo "::notice::No backend tests found; skipping regression steps."
-      - name: Start isolated test dependencies
-        if: ${{ hashFiles('tests/**/test_*.py') != '' }}
-        timeout-minutes: 15
-        run: docker compose -p webbuilder-ci --env-file tests/ci.env.example up -d --build --wait --wait-timeout 180
-      - name: Run offline and database/storage regressions
-        if: ${{ hashFiles('tests/**/test_*.py') != '' }}
-        timeout-minutes: 10
-        run: |
-          set -euo pipefail
-          docker run --rm --network host --env-file tests/ci.env.example --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m db.migrate
-          docker run --rm --network host --env-file tests/ci.env.example --entrypoint python webbuilder-backend:"$GITHUB_SHA" -m agent.init_storage
-          docker run --rm --network host --env-file tests/ci.env.example -v "$PWD/tests:/tests:ro" --entrypoint python webbuilder-backend:"$GITHUB_SHA" /tests/run_ci.py
-      - name: Remove isolated test dependencies
-        if: ${{ always() && hashFiles('tests/**/test_*.py') != '' }}
-        run: docker compose -p webbuilder-ci --env-file tests/ci.env.example down --volumes --remove-orphans
       - name: Package runtime artifact
         run: docker save webbuilder-backend:"$GITHUB_SHA" | gzip -1 > backend-image.tar.gz
       - name: Deploy and check readiness

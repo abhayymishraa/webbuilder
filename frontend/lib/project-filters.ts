@@ -1,6 +1,6 @@
 import type { Project } from "../api/types";
 
-export type ProjectSort = "newest" | "oldest" | "name-asc" | "name-desc";
+export type ProjectSort = "recent" | "newest" | "oldest" | "name-asc" | "name-desc";
 export type ProjectPeriod = "all" | "7" | "30";
 
 export function filterProjects(
@@ -26,12 +26,12 @@ export function filterProjects(
         order = a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true });
         if (sort === "name-desc") order = -order;
       } else {
-        const first = Date.parse(a.created_at);
-        const second = Date.parse(b.created_at);
+        const first = Date.parse(sort === "recent" ? a.updated_at || a.created_at : a.created_at);
+        const second = Date.parse(sort === "recent" ? b.updated_at || b.created_at : b.created_at);
         // Unknown dates always follow known dates, regardless of direction.
         if (Number.isFinite(first) !== Number.isFinite(second)) return Number.isFinite(first) ? -1 : 1;
         order = Number.isFinite(first) ? first - second : 0;
-        if (sort === "newest") order = -order;
+        if (sort !== "oldest") order = -order;
       }
       return order || a.id.localeCompare(b.id);
     });
