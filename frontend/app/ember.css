@@ -1,46 +1,40 @@
 @layer components {
-  .ember-art {
-    aspect-ratio: 0.9;
-    width: 100%;
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 32px;
-    border: 1px solid #46362f;
-    border-radius: 14px;
-    color: #fff;
-    background:
-      radial-gradient(
-        ellipse at 8% 110%,
-        #ff7145 0%,
-        #fc3b00aa 27%,
-        transparent 70%
-      ),
-      #000;
-  }
+    .ember-art {
+        aspect-ratio: 0.9;
+        width: 100%;
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 32px;
+        border: 1px solid #46362f;
+        border-radius: 14px;
+        color: #fff;
+        background:
+            radial-gradient(ellipse at 8% 110%, #ff7145 0%, #fc3b00aa 27%, transparent 70%), #000;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-  }
-  .animate-spin {
-    animation-duration: 2s;
-  }
-  [data-slot="sheet-content"],
-  [data-slot="sheet-overlay"] {
-    animation: none !important;
-    transition: none !important;
-  }
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+    }
+    .animate-spin {
+        animation-duration: 2s;
+    }
+    [data-slot="sheet-content"],
+    [data-slot="sheet-overlay"] {
+        animation: none !important;
+        transition: none !important;
+    }
 }
 [data-slot="sheet-content"] {
-  animation-timing-function: var(--ease-out);
+    animation-timing-function: var(--ease-out);
 }
 html:has(:focus-visible) [data-slot="sheet-content"],
 html:has(:focus-visible) [data-slot="sheet-overlay"] {
-  animation: none;
+    animation: none;
 }
