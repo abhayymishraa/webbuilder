@@ -1,0 +1,18 @@
+.paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: .045;
+  background-image: radial-gradient(var(--foreground) .45px, transparent .45px);
+  background-size: 4px 4px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card { transition: transform 220ms var(--ease-out); }
+  .card:focus-within { transform: translateY(-2px); }
+  @media (hover: hover) and (pointer: fine) {
+    .card:hover { transform: translateY(-2px); }
+  }
+}

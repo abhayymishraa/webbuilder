@@ -59,7 +59,7 @@ export default function ProjectsPage() {
       <div className="ember-workspace-shell flex min-h-[calc(100dvh_-_76px)] [&>.ember-workspace]:flex-1 [&>.ember-workspace]:min-w-0 [&>.ember-workspace]:w-full [&>.ember-workspace]:mx-auto max-md:min-h-[calc(100dvh_-_70px)]">
         <WorkspaceSidebar current="projects" />
         <main
-          className="ember-workspace max-w-295 m-auto pt-18 px-10 pb-25 max-md:pt-[45px] max-md:px-5.5 max-md:pb-[65px]"
+          className="ember-workspace max-w-295 mx-auto pt-12 px-10 pb-25 max-md:pt-8 max-md:px-5.5 max-md:pb-[65px]"
           id="main-content"
         >
           <div className="ember-page-title flex items-center justify-between gap-7.5 mb-9.5 [&_h1]:text-[clamp(32px,_4vw,_46px)] [&_h1]:leading-[1.08] [&_h1]:tracking-[-1.8px] [&_h1]:font-medium [&_p:not(.ember-eyebrow)]:text-[14px] [&_p:not(.ember-eyebrow)]:leading-[1.7] [&_p:not(.ember-eyebrow)]:text-muted-foreground [&_p:not(.ember-eyebrow)]:mt-4 max-md:items-start max-md:flex-col max-md:gap-5">
@@ -67,12 +67,8 @@ export default function ProjectsPage() {
               <p className="ember-eyebrow uppercase tracking-[0.12em] text-[10px] font-medium text-accent-foreground mb-5.5">
                 Your workspace
               </p>
-              <h1>
-                Good ideas
-                <br />
-                deserve a place.
-              </h1>
-              <p>Everything you’re making, ready to pick up again.</p>
+              <h1>Made by you.</h1>
+              <p>Your projects, ready to pick up again.</p>
             </div>
             <Link
               href="/chat"
