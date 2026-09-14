@@ -72,8 +72,13 @@ and `/opt/pw-browsers`; they do not enter generated application bundles.
 
 For a release, review current stable versions, update exact manifest versions,
 regenerate both lockfiles, and run lint/build plus desktop/mobile browser checks
-with approval. Build a new named E2B template, smoke-check a disposable sandbox,
-then set the backend's `E2B_TEMPLATE_ID` and restart that backend. Do not resolve
+with approval. Use the host-side `sandbox/template.py build <name>:<v-release>`
+command from the repository root. It uses E2B's native start/readiness snapshot
+and returns an exact `name:build-UUID` reference. Promote that reference to staging
+with `sandbox/template.py promote <build-ref> --to staging`. Smoke-check a
+disposable sandbox before using `--to production`. Set the backend's `E2B_TEMPLATE_ID` to the exact
+build reference and restart that backend. Promotion does not run checks or update
+the backend environment. Do not resolve
 `latest` during user runs. Node tags and Debian system packages are not digest
 locked, so the entire operating-system image is not bit-for-bit reproducible.
 

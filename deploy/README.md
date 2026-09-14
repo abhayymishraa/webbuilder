@@ -57,13 +57,25 @@ zero-downtime failover, and adding workers would violate admission/ownership ass
 
 ## Upgrade the generated-app template
 
-The 14 September 2026 starter is `webbuilder-react-design-20260914`, template ID
-`dwel3q1jkunk4chqfw7h`. Its [validation record](../docs/e2b-starter-validation-2026-09-14.md)
-covers local builds and a disposable E2B sandbox, not a production release.
-Set `E2B_TEMPLATE_ID=dwel3q1jkunk4chqfw7h` in the VM's private runtime file,
-retain its old value for rollback, and restart the backend after current
-generations finish. Deploy the accompanying agent guidance with the backend.
-Saved revisions retain their recorded template IDs; this does not migrate them.
+Follow the [SDK build and promotion commands](../README.md#e2b-template).
+Build a fresh version label, promote its exact `name:build-UUID` to staging,
+and smoke-check a disposable sandbox with approval before production promotion.
+Check the starter production build, desktop/mobile browser rendering, and a
+source restore followed by the existing Vite restart. Template HTTP readiness
+alone does not establish that these paths work.
+
+Set `E2B_TEMPLATE_ID` in the VM's private runtime file to the returned exact
+`build_ref`, retain the old value for rollback, and restart the backend after
+current generations finish. Do not configure a moving `:production` tag or bare
+name for new releases: saved revisions must retain a reproducible build reference.
+Tag promotion does not change the VM environment or deploy the backend.
+Deploy accompanying agent guidance with the backend when needed.
+
+Saved revisions retain their recorded template references; this does not migrate
+them. Legacy IDs such as `dwel3q1jkunk4chqfw7h` still work. For rollback, restore
+the previous backend environment reference and optionally reassign the production
+tag to that exact prior build. Adding the SDK release command does not establish
+a new built, smoke-checked, or deployed template.
 
 ## Roll out the orchestration change
 
