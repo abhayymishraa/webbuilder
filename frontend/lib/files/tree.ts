@@ -1,0 +1,56 @@
+import type { FileNode } from "@/types/file.type";
+
+export function buildFileTree(files: string[]): FileNode[] {
+    const root: FileNode[] = [];
+
+    files.forEach((filePath) => {
+        const parts = filePath.split("/");
+        let currentLevel = root;
+        let currentPath = "";
+
+        parts.forEach((part, index) => {
+            currentPath += (index === 0 ? "" : "/") + part;
+            const isLastPart = index === parts.length - 1;
+
+            let existingNode = currentLevel.find((node) => node.name === part);
+
+            if (!existingNode) {
+                existingNode = {
+                    name: part,
+                    path: currentPath,
+                    isDirectory: !isLastPart,
+                    children: !isLastPart ? [] : undefined,
+                };
+                currentLevel.push(existingNode);
+            }
+
+            if (!isLastPart && existingNode.children) {
+                currentLevel = existingNode.children;
+            }
+        });
+    });
+
+    return root;
+}
+
+export function getLanguageFromPath(filePath: string): string {
+    const ext = filePath.split(".").pop()?.toLowerCase();
+    const languageMap: Record<string, string> = {
+        js: "javascript",
+        jsx: "javascript",
+        ts: "typescript",
+        tsx: "typescript",
+        json: "json",
+        html: "html",
+        css: "css",
+        scss: "scss",
+        py: "python",
+        md: "markdown",
+        yml: "yaml",
+        yaml: "yaml",
+        xml: "xml",
+        sh: "shell",
+    };
+
+    return languageMap[ext || ""] || "plaintext";
+}
