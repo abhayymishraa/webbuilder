@@ -1,18 +1,17 @@
-FROM node:22-bookworm-slim
+FROM node:24.21.0-bookworm-slim
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tree python3 \
     && rm -rf /var/lib/apt/lists/*
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
-RUN mkdir -p /opt/webbuilder-checks && cd /opt/webbuilder-checks \
-    && npm install --save-exact playwright@1.61.0 \
+COPY checks/package.json checks/package-lock.json /opt/webbuilder-checks/
+RUN cd /opt/webbuilder-checks && npm ci --no-audit --no-fund \
     && npx playwright install --with-deps --only-shell chromium \
     && chmod -R a+rX /opt/webbuilder-checks /opt/pw-browsers
-WORKDIR /home/user
-RUN npm create vite@9.2.1 react-app -- --template react --no-interactive \
-    && cd react-app && npm install \
-    && npm install --save-exact tailwindcss@4.3.3 @tailwindcss/vite@4.3.3 react-router-dom react-icons
+WORKDIR /home/user/react-app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY src/ /home/user/react-app/src/
-COPY vite.config.js /home/user/react-app/vite.config.js
+COPY vite.config.js index.html .oxlintrc.json .gitignore README.md ./
 RUN chown -R user:user /home/user/react-app && npm cache clean --force
 USER user
 WORKDIR /home/user/react-app
