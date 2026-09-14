@@ -61,8 +61,19 @@ def public_tool_details(name, *, args=None, result=None):
             fields.update({key: result[key] for key in ('name', 'resource', 'sha256', 'bytes', 'status')
                            if isinstance(result.get(key), (str, int, bool))})
         elif name in {'execute_command', 'browser_preflight'}:
-            fields.update({key: result[key] for key in ('stdout', 'stderr', 'exit_code')
+            fields.update({key: result[key] for key in ('stdout', 'stderr', 'exit_code', 'pid', 'status', 'reconnected', 'output_may_be_incomplete')
                            if isinstance(result.get(key), (str, int))})
+        elif name == 'inspect_preview':
+            # Page text stays in model context; public history contains only bounded diagnostics.
+            fields.update({key: result[key] for key in ('revision', 'checked', 'final_verification')
+                           if isinstance(result.get(key), (int, bool))})
+            fields['errors'] = [item[:500] for item in result.get('errors', [])
+                                if isinstance(item, str)][:10]
+            fields['viewports'] = [page['viewport'] for page in result.get('pages', [])
+                                   if isinstance(page, dict) and page.get('viewport') in {'desktop', 'mobile'}]
+            screenshot = result.get('screenshot')
+            if isinstance(screenshot, dict):
+                fields['screenshot_captured'] = screenshot.get('captured') is True
         if isinstance(result.get('error'), str):
             fields['error'] = result['error']
         if isinstance(result.get('error_type'), str):

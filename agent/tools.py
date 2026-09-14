@@ -2,14 +2,19 @@
 import json
 import re
 from pathlib import PurePosixPath
-from typing import Annotated
+from typing import Annotated, Literal
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+from .commands import run_command
+
 ROOT = '/home/user/react-app'
 MAX_FILE_BYTES = 200_000
-MAX_OUTPUT = 12_000
+
+
+class FileWriteError(Exception):
+    """A native upload failed; retire the sandbox rather than checkpoint partial writes."""
 
 
 def project_path(path: str) -> str:
@@ -34,26 +39,29 @@ class WorkspaceTools:
         self.cache: dict[str, str] = {}
         self.revision = 0
         self.preview_revision = 0
+        self.screenshot_attempts = 0
 
     async def read(self, path: str) -> str:
         path = project_path(path)
         if path not in self.cache:
-            content = await self.sandbox.files.read(f'{ROOT}/{path}')
-            if len(content.encode()) > MAX_FILE_BYTES:
+            info = await self.sandbox.files.get_info(f'{ROOT}/{path}', request_timeout=10)
+            if info.size > MAX_FILE_BYTES:
                 raise ValueError('File exceeds the source-size limit')
+            reader = await self.sandbox.files.read(f'{ROOT}/{path}', format='stream', gzip=True,
+                request_timeout=20, stream_idle_timeout=10)
+            data = bytearray()
+            async with reader:
+                async for chunk in reader:
+                    # Metadata can race a file change; enforce the bound on decoded transfer bytes too.
+                    if len(data) + len(chunk) > MAX_FILE_BYTES:
+                        raise ValueError('File exceeds the source-size limit')
+                    data.extend(chunk)
+            content = data.decode('utf-8')
             self.cache[path] = content
         return self.cache[path]
 
     async def command(self, command: str, timeout: int = 60) -> dict:
-        try:
-            result = await self.sandbox.commands.run(command, cwd=ROOT, timeout=timeout)
-            return {'ok': result.exit_code == 0, 'exit_code': result.exit_code,
-                    'stdout': result.stdout[-MAX_OUTPUT:], 'stderr': result.stderr[-MAX_OUTPUT:]}
-        except Exception as exc:
-            # E2B raises on non-zero exit; retain its diagnostic, never mark it green.
-            return {'ok': False, 'error_type': type(exc).__name__, 'exit_code': getattr(exc, 'exit_code', None),
-                    'stdout': str(getattr(exc, 'stdout', ''))[-MAX_OUTPUT:],
-                    'stderr': str(getattr(exc, 'stderr', '') or str(exc))[-MAX_OUTPUT:]}
+        return await run_command(self.sandbox, command, cwd=ROOT, timeout=timeout)
 
     def definitions(self):
         @tool
@@ -72,11 +80,17 @@ class WorkspaceTools:
                 raise ValueError('A batch must not write the same path twice')
             if sum(len(f.content.encode()) for f in files) > 500_000:
                 raise ValueError('Batch is too large')
-            # Sequential writes avoid conflicting mutation races. Partial writes are reported as failures.
-            for path, item in zip(paths, files):
-                await self.sandbox.files.write(f'{ROOT}/{path}', item.content)
-                self.cache[path] = item.content
-                self.revision += 1
+            self.cache.clear()
+            self.revision += 1
+            try:
+                # E2B owns batching, compression and version fallback. Uploads are
+                # not atomic: an error must stop the run before any checkpoint.
+                await self.sandbox.files.write_files(
+                    [{'path': f'{ROOT}/{path}', 'data': item.content} for path, item in zip(paths, files)],
+                    gzip=True, request_timeout=20)
+            except Exception:
+                raise FileWriteError('File upload did not complete; sandbox cleanup is required') from None
+            self.cache.update({path: item.content for path, item in zip(paths, files)})
             return {'ok': True, 'changed_files': paths}
 
         @tool
@@ -88,13 +102,20 @@ class WorkspaceTools:
                 raise ValueError('Relative imports are not npm packages')
             if re.search(r'npm\s+run\s+(?:dev|start)\b', command):
                 raise ValueError('The template already runs the dev server')
-            result = await self.command(command)
-            self.cache.clear()
-            # Shell can modify files; invalidate cached reads even on failed commands.
-            self.revision += 1
-            return result
+            try:
+                return await self.command(command)
+            finally:
+                self.cache.clear()
+                # Shell can modify files even on failed commands.
+                self.revision += 1
 
-        return [read_files, write_files, execute_command]
+        @tool
+        async def inspect_preview(viewport: Literal['desktop', 'mobile'] = 'desktop', path: str = '/', screenshot: bool = False) -> dict:
+            """Inspect the current rendered page: text, HTTP status and browser errors. Set screenshot=true only for a concrete visual question; returns one viewport image, at most twice per run. No clicks or forms. Does not replace final build checks."""
+            from .browser import inspect_preview as inspect
+            return await inspect(self, viewport=viewport, path=path, screenshot=screenshot)
+
+        return [read_files, write_files, execute_command, inspect_preview]
 
 
 LIST_FILES_JS = r"""

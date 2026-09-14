@@ -1,19 +1,19 @@
 """One editing conversation with shared budgets and host-controlled verification."""
 import json
 import os
-import shlex
 import time
 from collections import Counter
-from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from .prompts import SYSTEM_PROMPT
-from .tools import WorkspaceTools, list_files
+from .tools import FileWriteError, WorkspaceTools, list_files
 from .context import CONTEXT_RULES, choose_files
 from .skills import RuntimeSkills
 from .public_tools import encode_public, public_tool_details, preflight_failure
-from .preview import control_preview
+from .usage import invoke_with_usage, prompt_cache_key, record_usage
+from .browser import check_browser, ensure_preview_current
+from .commands import CommandStateError
 
 
 class RunLimitError(Exception):
@@ -28,7 +28,25 @@ class SandboxSetupError(VerificationError):
     pass
 
 
+def without_preview_images(messages):
+    """Keep observations' text, but do not resend screenshots on later turns."""
+    text_messages = []
+    for message in messages:
+        if isinstance(message, ToolMessage) and isinstance(message.content, list):
+            content = [
+                block for block in message.content
+                if not isinstance(block, dict) or block.get('type') != 'image_url'
+            ]
+            message = message.model_copy(update={'content': content})
+        text_messages.append(message)
+    return text_messages
+
+
 def estimate_input_tokens(model, messages, tool_schema: str) -> tuple[int, str]:
+    images = sum(1 for message in messages if isinstance(message, ToolMessage)
+                 and isinstance(message.content, list) for block in message.content
+                 if isinstance(block, dict) and block.get('type') == 'image_url')
+    messages = without_preview_images(messages)
     try:
         # LangChain counts message/tool-call text but not bound tool definitions.
         count = model.get_num_tokens_from_messages(messages) + model.get_num_tokens(tool_schema)
@@ -40,25 +58,17 @@ def estimate_input_tokens(model, messages, tool_schema: str) -> tuple[int, str]:
         count += len(tool_schema.encode())
         estimator = 'bytes_fallback'
     # Allow for provider-specific message and tool framing; this is an estimate.
-    return count + 2000, estimator
-
-
-async def check_browser(workspace: WorkspaceTools, *, preflight: bool = False) -> dict:
-    script = Path(__file__).with_name('browser-check.cjs').read_text()
-    # Execute directly: overwriting the shared /tmp checker can fail with permission denied.
-    command = 'PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node -e ' + shlex.quote(script)
-    return await workspace.command(command + (' -- --preflight' if preflight else ''), timeout=45)
+    # Low-detail image accounting is model-specific. Reserve conservatively without
+    # tokenizing base64; measured provider usage still enforces the shared run budget.
+    return count + 2000 + images * 4096, estimator
 
 
 async def verify(workspace: WorkspaceTools) -> dict:
     build = await workspace.command('npm run build', timeout=90)
     if not build['ok']:
         return {'ok': False, 'build': build, 'browser': {'checked': False}}
-    if workspace.preview_revision != workspace.revision:
-        # Flush server-side module state after the complete edit, not every file.
-        # Infrastructure failures escape the model repair loop.
-        await control_preview(workspace.sandbox, 'restart')
-        workspace.preview_revision = workspace.revision
+    # Flush only after a successful build; infrastructure failures escape repair.
+    await ensure_preview_current(workspace)
     browser = await check_browser(workspace)
     return {'ok': browser['ok'], 'build': build, 'browser': browser}
 
@@ -108,6 +118,7 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
         '\nInitial files may be excerpts. Read complete files before replacing them.'),
         HumanMessage(content=json.dumps({'project_context': context, 'request': prompt,
                                         'files': initial, 'paths': paths}, ensure_ascii=False))]
+    cache_key = prompt_cache_key(messages[0].content, formatted_tools, getattr(memory, 'chat_id', ''))
     repeated = Counter()
     repairs = 0
     for turn in range(max_turns):
@@ -115,7 +126,7 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
         await emit('stage', message='Implementing changes' if not repairs else 'Repairing verification errors')
         await checkpoint()
         # Bound growing conversation inputs as well as measured provider usage.
-        if sum(len(str(m.content)) for m in messages) > 180_000:
+        if sum(len(str(m.content)) for m in without_preview_images(messages)) > 180_000:
             raise RunLimitError('Context budget reached; request a smaller change')
         estimated_input, estimator = estimate_input_tokens(model, messages, tool_schema)
         # Keep room for a useful response without always demanding the full 8k output ceiling.
@@ -126,10 +137,10 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
                 'used': metrics.get('total_tokens', 0), 'reserved': metrics.get('reserved_tokens', 0),
                 'estimated_input': estimated_input, 'output_reserve': 1024, 'estimator': estimator}
             raise RunLimitError('Token budget reached')
-        response = await bound.ainvoke(messages, max_tokens=output_limit)
-        usage = response.usage_metadata or {}
-        for key in ('input_tokens', 'output_tokens', 'total_tokens'):
-            metrics[key] = metrics.get(key, 0) + usage.get(key, 0)
+        response = await invoke_with_usage(bound, messages, max_tokens=output_limit,
+                                           prompt_cache_key=cache_key)
+        messages = without_preview_images(messages)
+        record_usage(metrics, response, phase='editor', estimated_input=estimated_input)
         if metrics.get('total_tokens', 0) + metrics.get('reserved_tokens', 0) >= token_budget:
             metrics['token_budget'] = {'stage': 'provider_usage', 'limit': token_budget,
                 'used': metrics.get('total_tokens', 0), 'reserved': metrics.get('reserved_tokens', 0)}
@@ -164,7 +175,7 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
                 raise RunLimitError('Tool-call budget reached')
             fingerprint = (call['name'], json.dumps(call['args'], sort_keys=True))
             # Reads are deduplicated until a mutation; other repeated operations are bounded globally.
-            key = (*fingerprint, workspace.revision if call['name'] == 'read_files' else 0)
+            key = (*fingerprint, workspace.revision if call['name'] in {'read_files', 'inspect_preview'} else 0)
             repeated[key] += 1
             if repeated[key] >= 3:
                 raise RunLimitError('Stopped repetitive tool calls without progress')
@@ -172,18 +183,30 @@ async def run_editor(sandbox, prompt, emit, checkpoint, metrics, model=None, mem
             await emit('tool_started', call_id=call_id, name=call['name'],
                        details=public_tool_details(call['name'], args=call['args']))
             started = time.monotonic()
+            fatal_error = None
             try:
                 if call['name'] not in tools:
                     raise ValueError('Unknown tool')
                 result = await tools[call['name']].ainvoke(call['args'])
             except Exception as exc:
                 result = {'ok': False, 'error': str(exc)[:2000]}
+                if isinstance(exc, (CommandStateError, FileWriteError)):
+                    fatal_error = exc
+                    result.update(error_type=type(exc).__name__, status='unknown')
             duration = round((time.monotonic() - started) * 1000)
+            image = result.pop('_image', None) if call['name'] == 'inspect_preview' else None
             serialized = json.dumps(result, ensure_ascii=False)
             detail = public_tool_details(call['name'], args=call['args'], result=result)
             # Keep valid JSON for old clients; new clients consume the structured projection.
             await emit('tool_completed', call_id=call_id, name=call['name'], ok=bool(result.get('ok')),
                        duration_ms=duration, details=detail, output=encode_public(detail))
-            messages.append(ToolMessage(content=serialized, tool_call_id=call_id, status='success' if result.get('ok') else 'error'))
+            if fatal_error is not None:
+                # Never checkpoint or edit while a command/upload may still mutate files.
+                raise fatal_error
+            content = serialized
+            if image is not None:
+                content = [{'type': 'text', 'text': serialized}, image]
+                metrics['preview_screenshots'] = metrics.get('preview_screenshots', 0) + 1
+            messages.append(ToolMessage(content=content, tool_call_id=call_id, status='success' if result.get('ok') else 'error'))
         await checkpoint(workspace.revision != before_revision)
     raise RunLimitError('Model-turn budget reached')
