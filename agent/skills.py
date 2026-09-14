@@ -103,14 +103,22 @@ class RuntimeSkills:
             return ''
         catalog = [{'name': name, 'description': entry['description'], 'bytes': entry['load_bytes']}
                    for name, entry in self.entries.items()]
-        # Opening selection sentence: OpenCode (MIT, copyright 2025 opencode).
-        # Pinned source and WebBuilder adaptations: docs/runtime-skills.md.
+        # Task-matching guidance adapted from OpenCode (MIT, copyright 2025 opencode).
+        # Taste family provenance: agent/skills/taste-source.json.
         return ('\nOptional reviewed design skills: ' + json.dumps(catalog) + '\n'
-                'Load a specialized skill when the task at hand matches one of the skills listed in the system prompt. '
-                'Also load an available skill when the user explicitly requests it by name. '
+                'Explicit user skill choice wins when available. '
+                'New UI (app, website, page, substantial component): load design-taste-frontend before editing. '
+                'Use another installed Taste specialist instead when better matched to brief. '
+                'Taste family: design-taste-frontend, design-taste-frontend-v1, gpt-taste, '
+                'brandkit, industrial-brutalist-ui, minimalist-ui, high-end-visual-design, '
+                ' stitch-design-taste, redesign-existing-projects, '
+                'and full-output-enforcement. Use available catalog entries and supported tools only. '
+                'No frontend-design default for new UI. Match interface type; no app-to-landing-page substitution '
+                'or unrequested style. Other tasks (edits, fixes, polish, animation, performance): choose '
+                'closest specialist from full catalog. Reassess each follow-up; no inherited creation default. '
                 'Use read_skill with the exact catalog name before the related work; reuse guidance already '
                 'loaded in this run. Match descriptions to the actual task, including targeted fixes. '
-                'If no skill clearly applies and none is explicitly requested, skip skill loading. '
+                'Outside new UI, skip skills only when neither clear match nor explicit request exists. '
                 'For automatic selection, prefer one primary guide and add complementary guidance only '
                 'when needed; honor explicitly requested skills without loading the entire catalog. '
                 'Preserve the user\'s scope, visual style and run budgets. '
