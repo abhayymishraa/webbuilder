@@ -12,6 +12,7 @@ from sqlalchemy import func, select, tuple_
 from db.base import AsyncSessionLocal
 from db.models import Chat, Message, ProjectMemory, Run, User
 from .events import redact
+from .usage import invoke_with_usage, prompt_cache_key, record_usage
 
 MAX_CONTEXT_BYTES = 48_000
 RECENT_MESSAGES = 6
@@ -235,15 +236,14 @@ unresolved under 1500 chars, at most 16 quotes of at most 1500 chars each. Prese
         metrics['compaction'] = 'attempted'
         try:
             summarizer = model.model_copy(update={'max_tokens': 2048})
-            response = await asyncio.wait_for(summarizer.ainvoke([SystemMessage(content=instructions),
-                HumanMessage(content=json.dumps(payload, ensure_ascii=False))]), timeout=25)
+            response = await asyncio.wait_for(invoke_with_usage(summarizer, [SystemMessage(content=instructions),
+                HumanMessage(content=json.dumps(payload, ensure_ascii=False))],
+                prompt_cache_key=prompt_cache_key(instructions, [], self.chat_id)), timeout=25)
             usage = response.usage_metadata or {}
             actual = usage.get('total_tokens')
             if isinstance(actual, int) and actual >= 0:
-                metrics['total_tokens'] = metrics.get('total_tokens', 0) + actual
                 metrics['reserved_tokens'] -= min(actual, reservation)
-            for key in ('input_tokens', 'output_tokens'):
-                metrics[key] = metrics.get(key, 0) + usage.get(key, 0)
+            record_usage(metrics, response, phase='compaction')
             raw = json.loads(response.text())
             if encoded_size(raw) > 10_000:
                 raise ContextError('Summary is too large')
