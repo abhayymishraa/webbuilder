@@ -25,7 +25,6 @@ Our rows show returned filenames/counts, command exit codes and stdout/stderr, m
 
 The backend publishes command text only for a small exact allowlist of commands. Other command inputs are explicitly omitted. Before/after source contents are not published, so this view cannot calculate real tool edit diffs. It does not invent them or expose unrestricted arguments.
 
-
 ## Structured event contract
 
 `tool_started` and `tool_completed` carry optional `details` with `version: 1`. Existing run/call/event IDs and sequence remain authoritative. A started file operation reports target `paths`; completed reads report `files`, and completed writes report `changed_files`. Counts describe the original list even if the public list is shortened. Commands report available exit code and stdout/stderr; retrieval reports message IDs, and skills report metadata only.
