@@ -1,7 +1,7 @@
 import type { ToolCall } from "./chat-types";
 
 const labels: Record<string, string> = {
-  read_skill: "Read design guidance", read_files: "Read files", write_files: "Edit files", execute_command: "Run command",
+  read_skill: "Read skill", read_files: "Read files", write_files: "Edit files", execute_command: "Run command",
   run_command: "Run command", search_project_history: "Search project history", list_files: "List files",
 };
 
@@ -18,6 +18,7 @@ export function presentTool(tool: ToolCall) {
   const record = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
   const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
   const text = (key: string) => typeof record?.[key] === "string" ? record[key] as string : "";
+  const skillName = tool.name === "read_skill" ? text("name") : "";
   const files = [...new Set(strings(record?.changed_files ?? record?.files ?? record?.paths))];
   const fileCount = typeof record?.file_count === "number" ? record.file_count : files.length;
   const targetFiles = Array.isArray(record?.paths);
@@ -50,6 +51,6 @@ export function presentTool(tool: ToolCall) {
   } else {
     summary = tool.output ? "Result available" : "No output recorded";
   }
-  return { fileCount, targetFiles, truncatedFields, command: text("command"), inputOmitted: record?.input_omitted === true, title: labels[tool.name] || tool.name.replaceAll("_", " "), summary, files, references,
+  return { fileCount, targetFiles, truncatedFields, command: text("command"), inputOmitted: record?.input_omitted === true, title: skillName ? `Read skill · ${skillName}` : labels[tool.name] || tool.name.replaceAll("_", " "), summary, files, references,
     stdout, stderr, error, exitCode, interrupted, changed: Boolean(record?.changed_files), parsed };
 }
