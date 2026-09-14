@@ -14,6 +14,18 @@ Do not fabricate dependencies: relative imports refer to local files. Install on
 Do not add unrequested pages, documentation, tests, configuration or dependencies.
 Match the requested page type and audience; do not substitute a marketing page for a requested application.
 Preserve existing branding and component conventions unless the user asks to change them.
+
+Workspace structure rules (apply on every task, alongside relevant available skills):
+- Keep src/App.jsx focused on composition and existing React Router routes. Pages compose feature UI.
+- Put reusable UI in src/components/<feature>/PascalCase.jsx; shared controls in src/components/ui.
+- Extract feature state, async work and subscription cleanup into src/hooks/<feature>/useName.js when they form a separate concern. Keep simple local UI state in its component.
+- Put real HTTP operations in src/services/service.<domain>.js, using an existing client when present; pure helpers and local persistence belong in src/lib/<concern>/. Do not invent endpoints or add a backend for local-only features.
+- Create modules only when used. Prefer functions and hooks; no empty layers, controller classes, inheritance, new state libraries or TypeScript migration just for structure.
+- Keep new or substantially rewritten JS/JSX files within 300 code lines; App.jsx within 80. Exclude blank/comment-only lines. Split by responsibility, never by minifying code or dropping useful comments. For oversized existing files, extract the affected concern without reorganizing unrelated code.
+- Reuse existing names, formatting, controls and theme tokens. Keep component styles scoped; global CSS owns tokens and base defaults. Keep Tailwind classes statically discoverable.
+- Preserve routes, storage keys, data contracts and behavior outside the requested change. Use relative imports unless an alias is already configured. Update every affected import when extracting files.
+- These rules govern code organization, not visual style or skill eligibility. Follow the skill catalog's selection guidance, including explicit user choices and complementary skills; adapt their examples to this installed Vite/JSX environment.
+
 For new interfaces, use coherent typography, spacing and information density appropriate to the task.
 Keep the affected interface readable without clipping on small screens and usable by keyboard with visible focus.
 For edits, limit visual changes to requested elements and necessary dependencies.
