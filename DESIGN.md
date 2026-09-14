@@ -45,12 +45,8 @@ call was added to the landing composer.
 
 ## Homepage component promotion
 
-Prototype navigation is shared across `/prototypes/ember-prompt` and
-`/prototypes/ember-components`, with consistent navigation, tighter prompt spacing,
-and aligned component gutters.
-
-The selected compact studies now share implementations in
-`frontend/components/ember/landing`. The standalone routes remain available.
+The selected illustrations live in `frontend/components/ember/landing`.
+Standalone prototype routes, their navigation, and the unused sieve demo have been removed.
 The homepage order is architecture, starter-concept carousel, source ownership, FAQ,
 prompt, footer. The starter gallery and links to its removed `#examples` anchor
 have been removed. The `#how-it-works` anchor is preserved. The architecture is the homepage h1 and fills
@@ -66,7 +62,7 @@ scale, and 56px desktop / 40px mobile section spacing. Illustrations are smaller
 the prompt's position immediately above the footer are preserved. No new motion
 is added for this density pass. Browser verification remains pending.
 Headlines wrap naturally and top-level section dividers are removed. Functional
-input, preview, and FAQ boundaries remain. The standalone showcase stays compact.
+input, preview, and FAQ boundaries remain.
 
 The homepage carousel replaces the sieve at `#filter`, preserving existing incoming
 links. It follows the supplied case-study composition but labels its three previews
@@ -80,7 +76,7 @@ rapid changes rather than queuing exits. The arrow's visual face scales to .97 o
 120ms while its 44px hit area stays fixed; reduced motion uses opacity .8 over 100ms.
 Native FAQ openings get a 140ms answer fade (80ms reduced motion) only for pointer
 activation. Keyboard activation cancels the fade. Checks for these cues remain unrun.
-The sieve remains in the standalone component study. The cube explains Layout, Style, Content, and
+The cube explains Layout, Style, Content, and
 Interactions beside the source ownership message. On the homepage, native CSS view
 timelines map scroll progress to the pieces' transforms: assembled at viewport
 entry, expanded at viewport center. Scrolling back reverses the movement; stopping
@@ -88,7 +84,6 @@ scrolling holds the current pose. Stationary labels fade in during the latter ha
 There is no autoplay, pointer tracking, or new button. Reduced motion and unsupported
 browsers show the expanded diagram immediately. No scroll listeners or observers
 are needed. This animation is not yet browser-verified. The opening diagram has numbered stage selectors and a compact animation pause control.
-Diagram selection and cube assembly remain interactive in the standalone showcase.
 Homepage sections inherit Ember's theme tokens and Helvetica typography. The
 composer carries the selected orange glow, with a visible multiline label, an
 explicit workspace action, and a reduced-motion fallback. No new dependencies were
@@ -121,8 +116,7 @@ The numbered stages select the highlighted layer and explanation. A keyboard/tou
 pause control suspends all motion without resetting its phase. IntersectionObserver
 and page visibility suspend playback offscreen and in hidden tabs; they never set
 animation progress. Both subscriptions are cleaned up on unmount. Reduced motion
-keeps the diagram static and hides the unnecessary pause control. The standalone study keeps static art and its existing
-stage controls. Browser/feel checks remain unrun.
+keeps the diagram static and hides the unnecessary pause control. Browser/feel checks remain unrun.
 
 The hero also supports mouse drag rotation through `ArchitectureTilt`. Motion spring
 values (mass 1, stiffness 100, damping 10) drive one perspective transform without

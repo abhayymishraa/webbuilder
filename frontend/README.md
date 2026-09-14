@@ -29,55 +29,7 @@ signed-in layouts also covered 844 × 390 landscape. Chat retained a viewport-si
 shell with internal scrolling. Menu, tool-detail, file-tab, theme-toggle, and
 prototype-dialog checks passed on phone and desktop. These checks used fake
 account/project responses and do not verify live generation or cloud storage.
-Historical verification notes below describe earlier revisions.
-
-## Standalone prompt concept
-
-Open `/prototypes/ember-prompt` for the charcoal/orange glowing-prompt study.
-It is inspired by the supplied Joel Volkmer reference
-([Pinterest](https://in.pinterest.com/pin/589056826307282600/)).
-Its styles and components live in that route's folder. Example prompts, text entry,
-and a native dialog work locally; the page makes no generation or authentication
-requests and is not linked from the product navigation. Typography uses the Ember
-Helvetica stack with a system serif italic accent. No dependencies were added.
-
-## Standalone illustration components
-
-Open `/prototypes/ember-components` for three additional Ember studies:
-
-- `#architecture`: `ArchitectureStudy` highlights **Your prompt**, **Build & check**, and **Preview** in a compact wireframe diagram.
-- `#assembly`: `AssemblyStudy` assembles four labeled modules (**Layout**, **Style**, **Content**, **Interactions**) around an orange app core.
-- `#filter`: `FilterStudy` feeds loose phrases into the sieve and reveals a small cow portfolio. **See the transformation** starts the demonstration; **Replay** restarts it. The preview's **Say hello** button displays a local greeting.
-
-Each component lives in its own file in `components/ember/landing`, with a
-shared scoped CSS module. The homepage and the server-rendered showcase use the same
-components. Illustrations are
-editable SVG geometry, using the supplied images as references, not embedded
-screenshots. The architecture, exploded cube, and sieve compositions are adapted
-to Ember; the sieve is a visual metaphor, not a claim about encryption or security.
-Reference links: [Pinterest](https://in.pinterest.com/pin/1131107262684357065/)
-and [supplied image](https://i.pinimg.com/736x/17/e5/e5/17e5e53b93467350272274d73b33b2d0.jpg).
-The supplied screenshots were used because these URLs could not be retrieved.
-
-The studies use compact illustrations with adjacent copy on desktop and stacked
-layouts on mobile. The sieve uses “cow portfolio”, “big photos”, “orange”, and
-“contact me” as its sample input. The portfolio is a predefined interactive example,
-not an actual model-generated result. Its locally bundled cow photograph is by
-[Mohammed Alzubidi on Unsplash](https://unsplash.com/photos/brown-and-white-cow-during-daytime-TZVYwkLDX1E),
-stored at `public/landing/cow-portrait.jpg`.
-
-Controls use local state, native buttons, visible focus indicators, and live state
-descriptions. Motion is triggered by interaction and disabled with reduced motion;
-keyboard activation skips decorative assembly and reveal animations. The studies
-make no generation requests and add no packages.
-
-## Prototype navigation
-
-The prompt and component prototype routes share a compact `StudyNav`, with an active-page label
-and a home link. Duplicate study headers were removed, prompt spacing was reduced,
-and the component showcase uses consistent gutters and fewer dividers. Existing
-demo interactions remain available. Browser and type-check verification for this
-revision have not been run.
+Verification notes describe earlier revisions, including prototype pages that have since been removed.
 
 ## Homepage integration
 
@@ -91,8 +43,7 @@ repeated workspace button or animated decoration and adds no dependencies.
 The opening section fills at least the viewport below the 76px navigation;
 short screens and enlarged text can extend it without clipping content.
 Headlines wrap naturally, and section boundaries use spacing instead of divider lines.
-Shared illustrations follow the
-homepage's light/dark tokens; the separate showcase retains its dark study palette.
+Homepage illustrations follow the application's light/dark tokens.
 The replaced reading-list demo and its page styles have been removed.
 
 The landing page uses a 1,220px outer content width, 28–36px supporting headings,
@@ -105,8 +56,7 @@ motion renders the diagram still. Mouse dragging tilts the diagram with Motion
 springs and release momentum; arrow keys rotate immediately and Escape resets.
 Touch gestures keep native page scrolling. The spring values update a single
 transform without frame-by-frame React state. Motion is the added dependency.
-There is no scroll-linked progress for this hero. These changes are unverified
-in a browser; the standalone diagram retains its existing controls and static art.
+There is no scroll-linked progress for this hero. These changes are unverified in a browser.
 The ownership cube follows page scroll: its pieces separate from viewport entry
 until the visual reaches the viewport center, and reassemble when scrolling back.
 Native CSS view timelines drive transforms and label opacity without scroll listeners
@@ -124,7 +74,6 @@ reduced motion). `FaqItem` preserves native details behavior and fades pointer-o
 answers over 140ms, or 80ms with reduced motion; keyboard openings remain instant.
 These interaction cues use the existing easing token and add no dependencies.
 The old three-card gallery, footer badges, and repeated footer buttons remain removed.
-The standalone component showcase retains the interactive diagram, cube, and sieve.
 
 Homepage spacing scales between 16px and 48px side gutters. At 960px and below,
 the starter carousel and prompt section stack before their columns become cramped.

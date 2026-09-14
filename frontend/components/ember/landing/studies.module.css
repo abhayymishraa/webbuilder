@@ -1,22 +1,12 @@
 @layer components {
-  .page {
-    --study-text: #f3ece6;
-    --study-muted: #b7a79c;
-    --study-accent: #ff7145;
-    color-scheme: dark;
-    background: #0b0908;
-    color: var(--study-text);
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    overflow: clip;
-  }
-  :is(.page, .integration) * {
+  .integration * {
     box-sizing: border-box;
   }
-  :is(.page, .integration) button {
+  .integration button {
     font: inherit;
     cursor: pointer;
   }
-  :is(.page, .integration) :is(a, button):focus-visible {
+  .integration :is(a, button):focus-visible {
     outline: 2px solid var(--study-focus, #ffb797);
     outline-offset: 6px;
   }
@@ -78,30 +68,6 @@
       transform: translateY(6px);
     }
   }
-  .action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 25px;
-    min-height: 48px;
-    padding: 13px 21px;
-    border-radius: 6px;
-    border: 1px solid #fb946c;
-    background: #ff7145;
-    color: #1e0e06;
-    font-weight: 550 !important;
-    font-size: 13px !important;
-    white-space: nowrap;
-    transition:
-      transform 140ms cubic-bezier(0.23, 1, 0.32, 1),
-      background 140ms ease;
-  }
-  .action:active {
-    transform: scale(0.98);
-  }
-  .action:focus-visible:active {
-    transform: none;
-  }
   .cubeSvg
     :is(
       .moduleBack,
@@ -134,30 +100,6 @@
   }
   .glassRight {
     transform: translate(18px, 12px);
-  }
-  .cubeSvg[data-expanded="false"] .moduleBack {
-    transform: translateY(61px);
-  }
-  .cubeSvg[data-expanded="false"] .moduleLeft {
-    transform: translate(42px, 20px);
-  }
-  .cubeSvg[data-expanded="false"] .moduleRight {
-    transform: translate(-42px, 20px);
-  }
-  .cubeSvg[data-expanded="false"] .moduleFront {
-    transform: translateY(-15px);
-  }
-  .cubeSvg[data-expanded="false"] .glassTop {
-    transform: translateY(85px);
-  }
-  .cubeSvg[data-expanded="false"] .glassLeft {
-    transform: translate(29px, -21px);
-  }
-  .cubeSvg[data-expanded="false"] .glassRight {
-    transform: translate(-29px, -21px);
-  }
-  .assembly:has(.action:focus-visible) .cubeSvg * {
-    transition: none;
   }
   .cubeLabels,
   .assembledLabel {
@@ -293,72 +235,13 @@
     }
   }
 
-  .filter {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
-    align-items: center;
-    padding: 36px 5%;
-    min-height: 530px;
-    border-top: 1px solid var(--study-border, #2a221d);
-    background: radial-gradient(
-      ellipse at 25% 39%,
-      var(--study-wash, #26130b) 0%,
-      transparent 60%
-    );
-  }
-  .filterVisual[data-animate="true"] .ideaPhrase {
-    animation: siftIdea 950ms cubic-bezier(0.32, 0, 0.67, 0) both;
-    animation-delay: var(--delay);
-  }
-  .filterVisual[data-animate="true"] .miniSite {
-    animation: revealPreview 400ms 800ms both;
-  }
-  .filterVisual[data-animate="true"] .previewPart {
-    animation: revealPreview 400ms both;
-  }
-  .filterVisual[data-animate="true"] .miniNav {
-    animation-delay: 850ms;
-  }
-  .filterVisual[data-animate="true"] .miniCopy {
-    animation-delay: 1000ms;
-  }
-  .filterVisual[data-animate="true"] .cowPhoto {
-    animation-delay: 1150ms;
-  }
-  @keyframes siftIdea {
-    0% {
-      transform: translateY(0);
-      opacity: 1;
-    }
-    75% {
-      opacity: 0.7;
-    }
-    100% {
-      transform: translateY(170px);
-      opacity: 0;
-    }
-  }
-  @keyframes revealPreview {
-    from {
-      transform: translateY(8px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
   @media (prefers-reduced-motion: reduce) {
-    :is(.page, .integration) *,
-    :is(.page, .integration) *::before,
-    :is(.page, .integration) *::after {
+    .integration *,
+    .integration *::before,
+    .integration *::after {
       animation: none !important;
       transition: none !important;
       scroll-behavior: auto !important;
-    }
-    .action:active {
-      transform: none;
     }
   }
 
@@ -373,7 +256,6 @@
     --diagram-ink: var(--foreground);
     --diagram-line: var(--muted-foreground);
     --diagram-highlight: var(--secondary-foreground);
-    --mini-surface: var(--card);
   }
   .integration .archLayer,
   .integration .orbit {

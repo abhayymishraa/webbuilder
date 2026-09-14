@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useState } from "react";
-import { ArrowUpRight, Layers3 } from "lucide-react";
+import { useId } from "react";
+import { Layers3 } from "lucide-react";
 import styles from "./studies.module.css";
 
 function Cube({
@@ -40,18 +40,17 @@ function Cube({
   );
 }
 
-export function AssemblyStudy({ ownership = false }: { ownership?: boolean }) {
-  const [expanded, setExpanded] = useState(true);
+export function AssemblyStudy() {
   const id = useId();
 
   return (
     <section
       id="assembly"
-      className={`studies-section relative max-w-270 m-auto scroll-mt-6 [&_h1]:text-[clamp(32px,_3.5vw,_44px)] [&_h1]:font-normal [&_h1]:leading-[1.1] [&_h1]:tracking-[-.045em] [&_h1]:m-0 [&_h1]:text-balance [&_h2]:text-[clamp(32px,_3.5vw,_44px)] [&_h2]:font-normal [&_h2]:leading-[1.1] [&_h2]:tracking-[-.045em] [&_h2]:m-0 [&_h2]:text-balance [&_em]:[font-family:"Iowan_Old_Style",_"Palatino_Linotype",_"Book_Antiqua",_Georgia,_serif] [&_em]:font-normal [&_em]:tracking-[-.045em] [&_em]:leading-[1.17] max-md:[&_h1]:text-[clamp(30px,_7.5vw,_38px)] max-md:[&_h2]:text-[clamp(30px,_7.5vw,_38px)] ${styles.assembly} studies-assembly grid grid-cols-[1fr_1fr] gap-12 items-center min-h-122.5 py-9 px-[5%] border-t border-t-[var(--study-border,_#2a221d)] max-md:grid-cols-[1fr] max-md:py-7.5 max-md:px-6 max-md:min-h-auto max-md:gap-4.5`}
+      className={`studies-section relative max-w-270 m-auto scroll-mt-6 [&_h1]:text-[clamp(32px,_3.5vw,_44px)] [&_h1]:font-normal [&_h1]:leading-[1.1] [&_h1]:tracking-[-.045em] [&_h1]:m-0 [&_h1]:text-balance [&_h2]:text-[clamp(32px,_3.5vw,_44px)] [&_h2]:font-normal [&_h2]:leading-[1.1] [&_h2]:tracking-[-.045em] [&_h2]:m-0 [&_h2]:text-balance [&_em]:[font-family:"Iowan_Old_Style",_"Palatino_Linotype",_"Book_Antiqua",_Georgia,_serif] [&_em]:font-normal [&_em]:tracking-[-.045em] [&_em]:leading-[1.17] max-md:[&_h1]:text-[clamp(30px,_7.5vw,_38px)] max-md:[&_h2]:text-[clamp(30px,_7.5vw,_38px)] studies-assembly grid grid-cols-[1fr_1fr] gap-12 items-center min-h-122.5 py-9 px-[5%] border-t border-t-[var(--study-border,_#2a221d)] max-md:grid-cols-[1fr] max-md:py-7.5 max-md:px-6 max-md:min-h-auto max-md:gap-4.5`}
       aria-labelledby={`${id}-heading`}
     >
       <div
-        data-scroll={ownership || undefined}
+        data-scroll="true"
         className={
           styles.cubeVisual +
           " studies-cubeVisual min-w-0 w-[min(100%,_400px)] m-auto max-md:w-[min(100%,_300px)] max-md:m-auto"
@@ -60,17 +59,10 @@ export function AssemblyStudy({ ownership = false }: { ownership?: boolean }) {
         <svg
           viewBox="0 0 680 690"
           role="img"
-          aria-label={
-            ownership
-              ? "Layout, style, content, and interactions form an app around an orange core"
-              : expanded
-                ? "Layout, style, content, and interactions separated around an orange app core"
-                : "Layout, style, content, and interactions assembled into one app"
-          }
-          data-expanded={expanded}
+          aria-label="Layout, style, content, and interactions form an app around an orange core"
           className={
             styles.cubeSvg +
-            " studies-cubeSvg block w-full h-auto aspect-[68_/_69] [overflow:visible] [&[data-expanded=false]_.studies-cubeLabels]:opacity-0 [&[data-expanded=false]_.studies-assembledLabel]:opacity-100"
+            " studies-cubeSvg block w-full h-auto aspect-[68_/_69] [overflow:visible]"
           }
         >
           <defs>
@@ -235,50 +227,16 @@ export function AssemblyStudy({ ownership = false }: { ownership?: boolean }) {
           aria-hidden="true"
         />
         <h2 id={`${id}-heading`}>
-          {ownership ? (
-            <>
-              Every piece. <em>Yours to keep.</em>
-            </>
-          ) : (
-            <>
-              The pieces of <em>your next app.</em>
-            </>
-          )}
+          Every piece. <em>Yours to keep.</em>
         </h2>
         <p className="studies-intro text-[var(--study-muted)] text-[15px] leading-[1.65] max-w-87.5 my-4.5 mx-0 text-pretty max-md:text-[14px]">
-          {ownership
-            ? "Read the source, download the project, and keep building outside the conversation."
-            : "Layout, style, content, and interactions. Built to work together, shaped by your words."}
+          Read the source, download the project, and keep building outside the
+          conversation.
         </p>
-        {!ownership && (
-          <>
-            <button
-              type="button"
-              className={
-                styles.action + " studies-action [&:hover]:bg-[#ff946f]"
-              }
-              aria-pressed={!expanded}
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? "Assemble the app" : "Explore the pieces"}
-              <ArrowUpRight size={18} aria-hidden="true" />
-            </button>
-            <p
-              className="studies-caption text-[var(--study-muted)] text-[12px] leading-[1.6] mt-5 min-h-10 max-w-87.5"
-              aria-live="polite"
-            >
-              {expanded
-                ? "Four parts. One working interface."
-                : "The pieces come together. Describe a change to keep refining."}
-            </p>
-          </>
-        )}
-        {ownership && (
-          <p className="studies-ownershipNote max-w-87.5 text-[13px] leading-[1.6] text-[var(--study-muted)]">
-            Inspect individual files or download the complete project ZIP from
-            your workspace.
-          </p>
-        )}
+        <p className="studies-ownershipNote max-w-87.5 text-[13px] leading-[1.6] text-[var(--study-muted)]">
+          Inspect individual files or download the complete project ZIP from
+          your workspace.
+        </p>
       </div>
     </section>
   );
