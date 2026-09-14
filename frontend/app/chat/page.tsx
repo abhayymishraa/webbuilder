@@ -6,7 +6,10 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { authApi, chatApi, type UserData } from "@/api";
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, Code2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { Brand } from "@/components/ember/Brand";
+import { Button } from "@/components/ui/button";
+import styles from "@/components/chat/ember-start.module.css";
 import { starterBriefs } from "@/lib/starter-briefs";
 import {
   MAX_PROJECT_DRAFT_LENGTH,
@@ -83,7 +86,7 @@ export default function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !isAuthenticated) return;
 
     setIsLoading(true);
     setError("");
@@ -104,74 +107,54 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="ember-chat-home h-dvh flex flex-col overflow-hidden [&>.ember-workspace-header]:flex-none [&_.ember-workspace-shell]:flex-1 [&_.ember-workspace-shell]:min-h-0 [&_.ember-workspace-shell]:overflow-hidden [&_.ember-workspace]:h-full [&_.ember-workspace]:my-0 [&_.ember-workspace]:min-w-0 [&_.ember-workspace]:min-h-0 [&_.ember-workspace]:overflow-y-auto [&_.ember-workspace]:py-[clamp(20px,_5dvh,_48px)] [&_.ember-workspace]:px-[clamp(20px,_4vw,_48px)] [&_.ember-workspace-intro]:mb-[clamp(16px,_3dvh,_28px)] [&_.ember-page-title_h1]:text-[clamp(30px,_5dvh,_48px)] [&_.ember-page-title_h1]:leading-[1.1] [&_.ember-composer_textarea]:resize-none [&_.ember-composer_textarea]:max-h-35 [&_.ember-composer_textarea]:text-[16px] [&_.ember-starter-list]:mt-5 [&_.ember-workspace-note]:mt-6 [&_.ember-workspace-note]:pt-4.5 max-md:[&_.ember-starter-list]:grid-cols-3 max-md:[&_.ember-starter-list]:gap-2 max-md:[&_.ember-starter-list_button]:flex max-md:[&_.ember-starter-list_button]:flex-col max-md:[&_.ember-starter-list_button]:items-start max-md:[&_.ember-starter-list_button]:py-3 max-md:[&_.ember-starter-list_button]:px-2 max-md:[&_.ember-starter-list_button]:gap-1.5 max-md:[&_.ember-starter-list_button_span]:hidden max-md:[&_.ember-starter-list_strong]:text-[12px] max-md:[&_.ember-starter-list_strong]:wrap-normal max-md:[&_.ember-workspace-note]:flex-wrap max-md:[&_.ember-workspace-note]:gap-2 max-md:[&_.ember-workspace-note]:text-[12px] [@media(height<=700px)]:[&_.ember-workspace]:py-4 [@media(height<=700px)]:[&_.ember-starter-list]:mt-3.5 [@media(height<=700px)]:[&_.ember-workspace-intro]:mb-[15px] [@media(height<=700px)]:[&_.ember-starter-list_button_span]:hidden [@media(height<=700px)]:[&_.ember-workspace-note]:hidden [@media(height<=700px)]:[&_.ember-starter-list_button]:p-3 max-md:[&_.ember-composer_textarea]:h-[clamp(75px,_12dvh,_110px)]">
+    <div className="ember-chat-home flex h-dvh flex-col overflow-hidden [&>.ember-workspace-header]:shrink-0">
       <ChatNavbar
         isAuthenticated={isAuthenticated}
         userData={userData}
         onSignOut={handleSignOut}
       />
-      <div className="ember-workspace-shell flex min-h-[calc(100dvh_-_76px)] [&>.ember-workspace]:flex-1 [&>.ember-workspace]:min-w-0 [&>.ember-workspace]:w-full [&>.ember-workspace]:mx-auto max-md:min-h-[calc(100dvh_-_70px)]">
+      <div className="ember-workspace-shell flex min-h-0 flex-1 overflow-hidden">
         <WorkspaceSidebar current="new" />
-        <main
-          className="ember-workspace max-w-295 m-auto pt-18 px-10 pb-25 max-md:pt-[45px] max-md:px-5.5 max-md:pb-[65px]"
-          id="main-content"
-        >
-          <div className="ember-page-title flex items-center justify-between gap-7.5 [&_h1]:text-[clamp(32px,_4vw,_46px)] [&_h1]:leading-[1.08] [&_h1]:tracking-[-1.8px] [&_h1]:font-medium [&_p:not(.ember-eyebrow)]:text-[14px] [&_p:not(.ember-eyebrow)]:leading-[1.7] [&_p:not(.ember-eyebrow)]:text-muted-foreground [&_p:not(.ember-eyebrow)]:mt-4 max-md:items-start max-md:flex-col max-md:gap-5 ember-workspace-intro max-w-175 mb-10">
-            <div>
-              <p className="ember-eyebrow uppercase tracking-[0.12em] text-[10px] font-medium text-accent-foreground mb-5.5">
-                A fresh start
-              </p>
-              <h1>
-                What would you
-                <br />
-                like to make?
-              </h1>
-              <p>Tell us who it is for and what they should be able to do.</p>
+        <main id="main-content" className="relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain bg-background">
+          <section className={`${styles.stage} relative isolate flex min-h-full flex-col items-center px-5 pb-6 pt-[clamp(24px,5dvh,64px)] text-center sm:px-10`} aria-labelledby="start-heading">
+            <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col items-center">
+              <header className="flex w-full flex-col items-center">
+                <Brand />
+                <h1 id="start-heading" className="mt-8 max-w-4xl text-[clamp(38px,5.5vw,68px)] font-normal leading-[1.08] tracking-[-.055em] text-balance">
+                  Talk your next idea <span className="text-accent-foreground">into life.</span>
+                </h1>
+                <p className="mt-5 max-w-sm text-base leading-relaxed text-muted-foreground sm:max-w-none">A conversation. A little direction. Something that’s yours.</p>
+                <div className="mt-7 inline-flex items-center gap-4 rounded-2xl border border-border/60 bg-secondary/60 p-1.5 pl-5">
+                  <span className="text-left text-xs leading-snug text-muted-foreground">From a thought<br />to a first draft.</span>
+                  <Button disabled={!isAuthenticated || isLoading} onClick={() => document.getElementById("project-brief")?.focus()} className="min-h-11 rounded-xl px-5">
+                    Try an idea <ArrowRight size={15} aria-hidden="true" />
+                  </Button>
+                </div>
+              </header>
+              <div className="relative mt-[clamp(40px,calc(20dvh_-_48px),152px)] w-full max-w-2xl">
+                <div className={`${styles.workspaceOutline} pointer-events-none absolute -inset-x-4 top-6 h-56 rounded-t-xl border border-border/50 lg:-inset-x-20`} aria-hidden="true">
+                  <div className="flex h-8 items-center gap-1.5 border-b border-border/50 px-4">
+                    <span className="size-1.5 rounded-full border border-border" />
+                    <span className="size-1.5 rounded-full border border-border" />
+                    <span className="size-1.5 rounded-full border border-border" />
+                    <span className="ml-3 h-5 w-28 rounded-t border border-border/60" />
+                  </div>
+                </div>
+                <ChatInputBox
+                  input={input}
+                  isLoading={isLoading}
+                  disabled={!isAuthenticated}
+                  onInputChange={setInput}
+                  onSubmit={handleSubmit}
+                />
+                {error && <p className="relative mt-4 rounded-lg border border-destructive bg-card px-4 py-3 text-left text-sm leading-relaxed text-destructive" role="alert">{error}</p>}
+                <p id="project-brief-note" className="relative mt-5 text-xs leading-relaxed text-muted-foreground">Describe your app, then press Enter to start building.</p>
+              </div>
+              <div className="relative mt-auto pt-10">
+                <Link href="/projects" className="inline-flex min-h-11 items-center gap-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-4">Continue an existing project <ArrowUpRight size={14} aria-hidden="true" /></Link>
+              </div>
             </div>
-          </div>
-          <div className="ember-brief max-w-187.5">
-            <ChatInputBox
-              input={input}
-              isLoading={isLoading || !isAuthenticated}
-              onInputChange={setInput}
-              onSubmit={handleSubmit}
-            />
-            {error && (
-              <p
-                className="ember-error text-destructive border border-destructive bg-card py-3 px-[15px] rounded-[8px] text-[13px] leading-[1.5] mt-4"
-                role="alert"
-              >
-                {error}
-              </p>
-            )}
-            <div
-              className="ember-starter-list grid grid-cols-3 gap-3.5 mt-8 [&>button]:p-4.5 [&>button]:border [&>button]:border-border [&>button]:bg-card [&>button]:text-left [&>button]:rounded-[10px] [&>button]:flex [&>button]:flex-col [&>button]:items-start [&>button]:gap-3 [&_strong]:text-[14px] [&_strong]:font-medium [&_span]:text-[12px] [&_span]:leading-[1.5] [&_span]:text-muted-foreground [&_svg]:text-accent-foreground pointer-fine:[&>button:hover]:border-input max-md:grid-cols-[1fr] max-md:[&>button]:grid max-md:[&>button]:grid-cols-[22px_1fr] max-md:[&>button]:gap-y-1.5 max-md:[&>button]:gap-x-3 max-md:[&>button>span]:col-start-2"
-              aria-label="Example briefs"
-            >
-              {starterBriefs.map((starter) => (
-                <button
-                  type="button"
-                  key={starter.id}
-                  disabled={isLoading}
-                  onClick={() => {
-                    setInput(starter.prompt);
-                    document.getElementById("project-brief")?.focus();
-                  }}
-                >
-                  <Code2 size={19} />
-                  <strong>{starter.title}</strong>
-                  <span>{starter.description}</span>
-                </button>
-              ))}
-            </div>
-            <div className="ember-workspace-note flex items-center gap-[15px] mt-12 border-t border-t-border pt-[25px] text-muted-foreground text-[13px] [&_a]:ml-auto [&_a]:text-accent-foreground max-md:items-start max-md:flex-wrap max-md:[&_a]:ml-0">
-              <BookOpen size={19} />
-              <span>Start small. Make the next change together.</span>
-              <Link href="/projects">
-                Your projects <ArrowUpRight size={14} className="inline" />
-              </Link>
-            </div>
-          </div>
+          </section>
         </main>
       </div>
     </div>
