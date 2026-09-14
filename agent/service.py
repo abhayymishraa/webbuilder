@@ -9,19 +9,23 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from e2b import AsyncSandbox, SandboxException
+from e2b.exceptions import ServiceBusyException
 from fastapi import HTTPException
 from sqlalchemy import select, update, func
 
 from db.base import AsyncSessionLocal
 from db.models import Chat, Message, Run, RunEvent, User
-from .runner import run_editor, check_browser, RunLimitError, VerificationError, SandboxSetupError
-from .tools import ROOT, WorkspaceTools
+from .runner import run_editor, RunLimitError, VerificationError, SandboxSetupError
+from .browser import check_browser
+from .commands import CommandStateError
+from .tools import ROOT, FileWriteError, WorkspaceTools
 from .preview import control_preview, PreviewError
 from .persistence import archive_slots, ensure_revision, latest_revision, revision_bytes, sandbox_archive, save_revision
 from .storage import StorageError
 from .events import redact, run_events
 from .context import ContextError, ProjectContext
 from .sandbox_runtime import SandboxRuntimes
+from .diagnostics import sandbox_diagnostics
 
 logger = logging.getLogger('webbuilder.runs')
 logger.setLevel(logging.INFO)
@@ -256,6 +260,8 @@ class Service:
                 sandbox = await self.get_e2b_sandbox(chat_id)
                 try:
                     await self.preview_ready(sandbox)
+                except CommandStateError:
+                    raise
                 except Exception:
                     row = await self.runtimes.get(chat_id)
                     if not row or not row.reusable:
@@ -307,11 +313,12 @@ class Service:
         live.events.append(event)
         self.publish(live.chat_id, event)
         logger.info(json.dumps({'run_id': live.id, 'status': status, **{
-            key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'stage', 'sandbox_cleanup', 'token_budget')}}))
+            key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'stage', 'sandbox_cleanup', 'token_budget', 'model_calls', 'cached_input_tokens', 'cache_write_tokens', 'uncached_input_tokens')}}))
 
     async def execute(self, live):
         started = time.monotonic()
         status, reason, result = 'failed', 'The run failed. Submit a new request to retry.', None
+        diagnose_sandbox = False
         try:
             async with asyncio.timeout(int(os.getenv('RUN_TIMEOUT_SECONDS', '600'))):
                 await self.emit(live, 'run_started', message='Starting your request')
@@ -327,18 +334,25 @@ class Service:
                 status, reason = 'succeeded', result['summary'] + '\n\nProduction build and desktop/mobile browser smoke checks passed.'
         except TimeoutError:
             status, reason = 'timed_out', 'The run reached its time limit. Partial changes may remain; submit a smaller request.'
+            diagnose_sandbox = True
         except asyncio.CancelledError:
             status = 'interrupted' if self.stopping else 'cancelled'
             reason = 'Server stopped; submit a new request to continue.' if self.stopping else 'Stopped at your request. The last acknowledged checkpoint remains available.'
         except (RunLimitError, VerificationError, ContextError, PreviewError) as exc:
             reason = str(exc)
             live.metrics['error_type'] = type(exc).__name__
+            diagnose_sandbox = isinstance(exc, (SandboxSetupError, PreviewError))
         except StorageError as exc:
             reason = str(exc) + '. The last acknowledged checkpoint is safe. No automatic AI retry was started.'
             live.metrics['error_type'] = 'StorageError'
-        except SandboxException as exc:
+        except (CommandStateError, FileWriteError) as exc:
+            reason = str(exc) + '. The last acknowledged checkpoint remains available.'
+            live.metrics['error_type'] = type(exc).__name__
+            diagnose_sandbox = True
+        except (SandboxException, ServiceBusyException) as exc:
             reason = 'The build sandbox could not complete an operation. Retry the request; if it keeps failing, check the E2B template and service availability.'
             live.metrics['error_type'] = type(exc).__name__
+            diagnose_sandbox = True
             logger.error('Sandbox operation failed run_id=%s error_type=%s stage=%s',
                          live.id, type(exc).__name__, live.metrics.get('stage'))
         except Exception as exc:
@@ -353,6 +367,14 @@ class Service:
                 # Completed mutation batches are already saved. Never archive a half-finished command.
                 if live.sandbox:
                     self.sandboxes[live.chat_id] = live.sandbox
+                    if diagnose_sandbox:
+                        # At most four seconds before retirement. No periodic polling or model input.
+                        try:
+                            live.metrics['sandbox_diagnostics'] = await sandbox_diagnostics(live.sandbox.sandbox_id)
+                        except asyncio.CancelledError:
+                            # Cancellation during optional evidence collection must still retire the sandbox.
+                            status = 'interrupted' if self.stopping else 'cancelled'
+                            reason = 'Stopped while collecting diagnostics. The last acknowledged checkpoint remains available.'
                 if await self.retire_sandbox(live.chat_id):
                     live.metrics['sandbox_cleanup'] = 'killed'
                 else:
