@@ -8,7 +8,7 @@ dependencies = [
     "anyio>=4.11,<5",
     "psycopg[binary]>=3.2,<4",
     "python-dotenv>=1.1.1",
-    "e2b>=2.3.0,<3",
+    "e2b==2.49.1",
     "fastapi>=0.119.0",
     "greenlet>=3.2.4",
     "langchain-core>=0.3.79,<0.4",

@@ -11,7 +11,7 @@ import uuid
 
 from e2b import (AsyncSandbox, AuthenticationException, InvalidArgumentException,
                  NotFoundException, SandboxQuery, SandboxState)
-from e2b.exceptions import RateLimitException
+from e2b.exceptions import RateLimitException, ServiceBusyException
 from sqlalchemy import delete, or_, select, update
 
 from db.base import AsyncSessionLocal
@@ -144,9 +144,11 @@ class SandboxRuntimes:
         # Ownership intent is committed before the provider request.
         try:
             async with asyncio.timeout(40):
-                handle = await AsyncSandbox.beta_create(template=template, timeout=RUNTIME_TIMEOUT,
-                    auto_pause=True, metadata={'webbuilder_operation': row.operation_id}, request_timeout=30)
-        except (AuthenticationException, InvalidArgumentException, NotFoundException, RateLimitException):
+                handle = await AsyncSandbox.create(template=template, timeout=RUNTIME_TIMEOUT,
+                    lifecycle={'on_timeout': 'pause', 'auto_resume': False},
+                    metadata={'webbuilder_operation': row.operation_id}, request_timeout=30)
+        except (AuthenticationException, InvalidArgumentException, NotFoundException,
+                RateLimitException, ServiceBusyException):
             # Explicit request rejection is different from a lost creation response.
             await self.remove(row)
             raise
@@ -177,7 +179,7 @@ class SandboxRuntimes:
             return await self.retire(row.chat_id)
         try:
             async with asyncio.timeout(30):
-                await AsyncSandbox.beta_pause(row.sandbox_id, request_timeout=30)
+                await AsyncSandbox.pause(row.sandbox_id, request_timeout=30)
             await self.change(row, state='paused')
             self.forget_handle(row.chat_id)
             return True
