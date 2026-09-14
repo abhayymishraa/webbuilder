@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { useState } from "react";
 import { FolderOpen } from "lucide-react";
@@ -17,9 +18,9 @@ export function ProjectsList() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button className="ember-icon" aria-label="Open your projects">
+        <Button variant="icon" aria-label="Open your projects">
           <FolderOpen size={18} />
-        </button>
+        </Button>
       </SheetTrigger>
       <SheetContent className="bg-card text-foreground border-border overflow-y-auto">
         <SheetHeader>

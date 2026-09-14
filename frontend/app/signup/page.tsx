@@ -44,20 +44,28 @@ export default function SignUpPage() {
     }
   };
 
-  if (registered) return <AuthFrame signup>
-    <p role="status">We sent a verification link to {email}. Open it within 30 minutes to continue.</p>
-    <p className="ember-auth-switch"><Link href="/verify-email">Resend verification email</Link></p>
-  </AuthFrame>;
+  if (registered)
+    return (
+      <AuthFrame signup>
+        <p role="status">
+          We sent a verification link to {email}. Open it within 30 minutes to
+          continue.
+        </p>
+        <p className="ember-auth-switch text-[13px]! text-center mt-[25px]! [&_a]:text-accent-foreground [&_a]:underline [&_a]:underline-offset-[3px]">
+          <Link href="/verify-email">Resend verification email</Link>
+        </p>
+      </AuthFrame>
+    );
 
   return (
     <AuthFrame signup>
       <SocialLogin registration onOptions={setOptions} />
       <form
         onSubmit={handleSubmit}
-        className="ember-form"
+        className="ember-form flex flex-col gap-[21px] mt-7.5 [&_.ember-helper]:-mt-3"
         aria-busy={isLoading}
       >
-        <label htmlFor="name">
+        <label className="flex flex-col gap-[9px] text-[13px]" htmlFor="name">
           Your name
           <Input
             id="name"
@@ -69,7 +77,7 @@ export default function SignUpPage() {
             placeholder="Your name"
           />
         </label>
-        <label htmlFor="email">
+        <label className="flex flex-col gap-[9px] text-[13px]" htmlFor="email">
           Email address
           <Input
             id="email"
@@ -82,7 +90,10 @@ export default function SignUpPage() {
             placeholder="you@example.com"
           />
         </label>
-        <label htmlFor="password">
+        <label
+          className="flex flex-col gap-[9px] text-[13px]"
+          htmlFor="password"
+        >
           Password
           <Input
             id="password"
@@ -97,15 +108,25 @@ export default function SignUpPage() {
             aria-describedby="password-hint"
           />
         </label>
-        <p id="password-hint" className="ember-helper">
+        <p
+          id="password-hint"
+          className="ember-helper text-[12px] leading-[1.6] text-muted-foreground"
+        >
           Use at least 8 characters. Verify your email to open your workspace.
         </p>
         {error && (
-          <p className="ember-error" role="alert">
+          <p
+            className="ember-error text-destructive border border-destructive bg-card py-3 px-[15px] rounded-[8px] text-[13px] leading-[1.5]"
+            role="alert"
+          >
             {error}
           </p>
         )}
-        <Button type="submit" disabled={isLoading || !options?.email_verification} className="ember-button">
+        <Button
+          type="submit"
+          disabled={isLoading || !options?.email_verification}
+          variant="default"
+        >
           {isLoading ? (
             <>
               <Loader2 size={16} className="animate-spin" />
@@ -116,7 +137,7 @@ export default function SignUpPage() {
           )}
         </Button>
       </form>
-      <p className="ember-auth-switch">
+      <p className="ember-auth-switch text-[13px]! text-center mt-[25px]! [&_a]:text-accent-foreground [&_a]:underline [&_a]:underline-offset-[3px]">
         Already have an account? <Link href="/signin">Sign in</Link>
       </p>
     </AuthFrame>

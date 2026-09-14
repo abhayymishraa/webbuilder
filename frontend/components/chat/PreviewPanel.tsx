@@ -1,3 +1,4 @@
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Eye,
   FileCode,
@@ -42,7 +43,8 @@ export function PreviewPanel({
 }: PreviewPanelProps) {
   const [viewport, setViewport] = useState("desktop");
   const [refresh, setRefresh] = useState(0);
-  const preparing = Boolean(revisionId) && (phase === "checking" || phase === "opening");
+  const preparing =
+    Boolean(revisionId) && (phase === "checking" || phase === "opening");
   const building = isBuilding || phase === "building";
 
   let emptyTitle = "Your canvas is ready.";
@@ -56,7 +58,8 @@ export function PreviewPanel({
     emptyTitle = "Your preview is sleeping.";
   }
 
-  let emptyDescription = "The app preview will appear when your build makes it available.";
+  let emptyDescription =
+    "The app preview will appear when your build makes it available.";
   if (building) {
     emptyDescription = "Follow the existing build in your conversation.";
   } else if (preparing) {
@@ -67,65 +70,69 @@ export function PreviewPanel({
 
   return (
     <section
-      className="ember-preview"
+      className="ember-preview min-w-0 min-h-0 flex flex-col bg-muted [&[data-viewport=tablet]_iframe]:max-w-192 [&[data-viewport=mobile]_iframe]:max-w-[375px]"
       aria-label="App workspace"
       data-viewport={viewport}
       style={{ width: `${previewWidth}%` }}
     >
-      <div className="ember-preview-toolbar">
-        <div className="ember-row" role="group" aria-label="Preview views">
-          <button
-            className="ember-tab"
+      <div className="ember-preview-toolbar min-h-12 border-b border-b-border flex items-center justify-between gap-2 py-[5px] px-3 bg-card [&>.ember-row]:gap-[3px] max-md:p-1.5 max-md:[&_.ember-icon]:w-7 max-md:[&_.ember-tab]:p-2 flex-wrap [&_.ember-row]:min-w-0">
+        <div
+          className="ember-row flex items-center gap-3.5"
+          role="group"
+          aria-label="Preview views"
+        >
+          <Button
+            variant="tab"
             aria-pressed={activeTab === "preview"}
             onClick={() => onTabChange("preview")}
           >
             <Globe size={14} />
             Preview
-          </button>
-          <button
-            className="ember-tab"
+          </Button>
+          <Button
+            variant="tab"
             aria-pressed={activeTab === "files"}
             onClick={() => onTabChange("files")}
           >
             <FileCode size={14} />
             Files{files.length ? ` (${files.length})` : ""}
-          </button>
+          </Button>
         </div>
-        <div className="ember-row">
+        <div className="ember-row flex items-center gap-3.5">
           {activeTab === "preview" && (
             <>
-              <button
-                className="ember-icon"
+              <Button
+                variant="icon"
                 aria-label="Desktop preview"
                 aria-pressed={viewport === "desktop"}
                 onClick={() => setViewport("desktop")}
               >
                 <Monitor size={15} />
-              </button>
-              <button
-                className="ember-icon"
+              </Button>
+              <Button
+                variant="icon"
                 aria-label="Tablet preview"
                 aria-pressed={viewport === "tablet"}
                 onClick={() => setViewport("tablet")}
               >
                 <Tablet size={15} />
-              </button>
-              <button
-                className="ember-icon"
+              </Button>
+              <Button
+                variant="icon"
                 aria-label="Mobile preview"
                 aria-pressed={viewport === "mobile"}
                 onClick={() => setViewport("mobile")}
               >
                 <Smartphone size={15} />
-              </button>
-              <button
-                className="ember-icon"
+              </Button>
+              <Button
+                variant="icon"
                 disabled={!appUrl || phase !== "active"}
                 aria-label="Reload preview"
                 onClick={() => setRefresh((value) => value + 1)}
               >
                 <RotateCcw size={14} />
-              </button>
+              </Button>
             </>
           )}
           {appUrl && phase === "active" && (
@@ -133,7 +140,7 @@ export function PreviewPanel({
               href={appUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="ember-icon"
+              className={buttonVariants({ variant: "icon" })}
               aria-label="Open preview in new tab"
             >
               <ExternalLink size={15} />
@@ -142,7 +149,9 @@ export function PreviewPanel({
         </div>
       </div>
       {activeTab === "preview" ? (
-        <div className="ember-preview-stage">
+        <div
+          className="ember-preview-stage flex-1 min-h-0 overflow-auto flex justify-center p-5 [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:min-h-70 [&_iframe]:border [&_iframe]:border-border [&_iframe]:rounded-[8px] [&_iframe]:bg-white [&>.ember-empty]:w-full [&>.ember-empty]:border-solid [&>.ember-empty]:justify-center max-md:p-2.5"
+        >
           {appUrl && phase === "active" && !building ? (
             <iframe
               key={`${projectId}-${refresh}`}
@@ -151,25 +160,32 @@ export function PreviewPanel({
               sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
             />
           ) : (
-            <div className="ember-empty">
+            <div className="ember-empty py-17.5 px-[25px] flex flex-col items-center text-center gap-4 border border-dashed border-border rounded-[14px] text-muted-foreground [&_h2]:text-[22px] [&_h2]:text-foreground [&_p]:text-[14px] [&_p]:max-w-92.5">
               <Eye size={34} />
               <h2>{emptyTitle}</h2>
               <p role={preparing || building ? "status" : undefined}>
                 {emptyDescription}
               </p>
-              {revisionId && !preparing && !building && <button className="ember-button" onClick={onRetry}>
-                {previewError ? "Retry" : "Resume preview"}
-              </button>}
+              {revisionId && !preparing && !building && (
+                <Button variant="default" onClick={onRetry}>
+                  {previewError ? "Retry" : "Resume preview"}
+                </Button>
+              )}
               {previewError && !building && <p role="alert">{previewError}</p>}
             </div>
           )}
         </div>
       ) : (
-        <div className="ember-preview-files">
-          <FileViewer key={projectId} files={files} projectId={projectId} revisionId={revisionId} />
+        <div className="ember-preview-files flex-1 min-h-0 overflow-hidden">
+          <FileViewer
+            key={projectId}
+            files={files}
+            projectId={projectId}
+            revisionId={revisionId}
+          />
         </div>
       )}
-      <div className="ember-preview-caption">
+      <div className="ember-preview-caption border-t border-t-border text-[10px] leading-[1.5] text-muted-foreground py-2 px-3.5">
         {activeTab === "preview"
           ? "Live app preview · Source available in Files"
           : "Saved source and assets · App databases need their own backups"}

@@ -1,5 +1,36 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Styling conventions
+
+Use Tailwind utilities for layout, spacing, typography, responsive breakpoints,
+and interaction states. Put utilities on the element they style when practical;
+reserve descendant variants for structured content such as code listings or a
+component's deliberate layout overrides.
+
+- `app/globals.css` owns theme tokens and base styles. Use semantic utilities
+  such as `bg-card`, `text-muted-foreground`, and `border-input` for product UI.
+- `components/ui/button.tsx` owns primary, secondary, icon, tab, and transcript
+  utility button variants. Use `Button` for actions and `buttonVariants` for links.
+- `components/ui/input.tsx` owns the shared form field appearance, focus state,
+  disabled state, and readable mobile input size.
+- Scoped CSS modules retain illustration geometry, keyframes, masks, scroll
+  timelines, and other effects that are clearer in CSS. Their component layer
+  allows intentional Tailwind overrides without specificity escalation.
+- `app/ember.css` retains artwork and shared motion behavior. Ordinary page
+  layout no longer belongs in a second global stylesheet.
+
+Keep class names statically discoverable by Tailwind. Preserve reduced-motion
+handling and keyboard focus when adding variants. A CSS migration alone does
+not resolve repeated API requests or prove a network performance improvement.
+
+The September 14 styling migration passed TypeScript and lint on the styling
+files. Public layouts were checked at 320, 390, 768, and 1440px widths; mocked
+signed-in layouts also covered 844 × 390 landscape. Chat retained a viewport-sized
+shell with internal scrolling. Menu, tool-detail, file-tab, theme-toggle, and
+prototype-dialog checks passed on phone and desktop. These checks used fake
+account/project responses and do not verify live generation or cloud storage.
+Historical verification notes below describe earlier revisions.
+
 ## Standalone prompt concept
 
 Open `/prototypes/ember-prompt` for the charcoal/orange glowing-prompt study.

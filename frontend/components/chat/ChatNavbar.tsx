@@ -1,3 +1,4 @@
+import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { FolderOpen, LogOut, Plus, UserRound } from "lucide-react";
 import type { UserData } from "@/api";
@@ -16,41 +17,53 @@ export function ChatNavbar({
   onSignOut,
 }: ChatNavbarProps) {
   return (
-    <header className="ember-workspace-header">
+    <header className="ember-workspace-header h-19 py-4 px-7 flex items-center justify-between gap-5 border-b border-b-border bg-background max-[1101px]:px-5 max-md:h-17.5 max-md:py-3.5 max-md:px-4 max-md:gap-2 max-md:[&>.ember-row]:gap-[5px] max-md:[&_.ember-button]:p-2.5 max-md:[&_.ember-button]:text-[12px] max-md:[&_.ember-brand]:text-[18px] max-md:[&_.ember-brand]:gap-[7px] max-md:[&_.ember-brand>svg]:w-5 max-md:[&_.ember-row]:gap-2 max-[381px]:gap-2 max-[381px]:px-3">
       <Brand />
-      <div className="ember-row">
+      <div className="ember-row flex items-center gap-3.5">
         <ThemeToggle />
         {isAuthenticated ? (
           <>
-            <Link href="/projects" className="ember-text-link ember-projects-link" aria-label="Projects">
+            <Link
+              href="/projects"
+              className="ember-text-link inline-flex items-center gap-2 text-[13px] bg-transparent border-0 text-secondary-foreground no-underline pointer-fine:hover:text-foreground ember-projects-link max-[381px]:[&_span]:hidden max-[381px]:min-w-9 max-[381px]:min-h-10 max-[381px]:justify-center"
+              aria-label="Projects"
+            >
               <FolderOpen size={16} />
               <span>Projects</span>
             </Link>
-            <Link href="/profile" className="ember-icon" aria-label="Your profile"><UserRound size={18} /></Link>
-            <div className="ember-account">
+            <Link
+              href="/profile"
+              className={buttonVariants({ variant: "icon" })}
+              aria-label="Your profile"
+            >
+              <UserRound size={18} />
+            </Link>
+            <div className="ember-account flex items-center gap-3 text-[12px] text-muted-foreground min-w-0 [&>span:first-child]:max-w-55 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-ellipsis [&>span:first-child]:whitespace-nowrap max-[1101px]:[&>span:first-child]:hidden max-md:hidden">
               {userData && (
                 <>
                   <span>{userData.email}</span>
-                  <span className="ember-balance">
+                  <span className="ember-balance text-foreground bg-secondary py-1.5 px-2.5 rounded-[6px] whitespace-nowrap">
                     {userData.tokens_remaining} credits
                   </span>
                 </>
               )}
             </div>
-            <button
-              className="ember-icon"
-              onClick={onSignOut}
-              aria-label="Sign out"
-            >
+            <Button variant="icon" onClick={onSignOut} aria-label="Sign out">
               <LogOut size={17} />
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <Link href="/signin" className="ember-text-link">
+            <Link
+              href="/signin"
+              className="ember-text-link inline-flex items-center gap-2 text-[13px] bg-transparent border-0 text-secondary-foreground no-underline pointer-fine:hover:text-foreground"
+            >
               Sign in
             </Link>
-            <Link href="/signup" className="ember-button">
+            <Link
+              href="/signup"
+              className={buttonVariants({ variant: "default" })}
+            >
               <Plus size={16} />
               Sign up
             </Link>

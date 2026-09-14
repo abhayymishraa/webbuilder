@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -17,7 +18,6 @@ import {
 import { consolidateMessages } from "@/lib/chat-utils";
 import { handleWebSocketMessage } from "@/lib/websocket-handlers";
 import type { Message } from "@/lib/chat-types";
-import transcriptStyles from "@/components/chat/transcript.module.css";
 import { usePreviewLifecycle } from "@/lib/use-preview-lifecycle";
 
 export default function ChatIdPage() {
@@ -97,20 +97,33 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
     const loadFiles = async () => {
       const request = ++requestNumber;
       try {
-        const { data } = await apiClient.get<{ files: string[]; revision_id: string | null }>(`/projects/${chatId}/files`);
+        const { data } = await apiClient.get<{
+          files: string[];
+          revision_id: string | null;
+        }>(`/projects/${chatId}/files`);
         if (!disposed && request === requestNumber) {
           setProjectFiles(data.files);
           setRevisionId(data.revision_id);
         }
-      } catch { /* Keep the last readable checkpoint during a temporary outage. */ }
+      } catch {
+        /* Keep the last readable checkpoint during a temporary outage. */
+      }
     };
     void loadFiles();
-    const timer = isBuilding ? setInterval(() => { void loadFiles(); }, 10000) : undefined;
-    return () => { disposed = true; if (timer) clearInterval(timer); };
+    const timer = isBuilding
+      ? setInterval(() => {
+          void loadFiles();
+        }, 10000)
+      : undefined;
+    return () => {
+      disposed = true;
+      if (timer) clearInterval(timer);
+    };
   }, [chatId, isBuilding]);
 
   useEffect(() => {
-    if (followLatest.current) messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    if (followLatest.current)
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages, mobilePane]);
 
   // Handle drag resize
@@ -200,7 +213,10 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
           try {
             await apiClient.get("/auth/me");
             if (disposed || wsRef.current !== ws) return;
-            if (getSessionId() === sessionId && localStorage.getItem("auth_token") !== token) {
+            if (
+              getSessionId() === sessionId &&
+              localStorage.getItem("auth_token") !== token
+            ) {
               connect();
               return;
             }
@@ -208,7 +224,9 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
             if (disposed || wsRef.current !== ws) return;
           }
           setIsBuilding(false);
-          setError("Could not reconnect. Check your connection and project access, then reload.");
+          setError(
+            "Could not reconnect. Check your connection and project access, then reload.",
+          );
           return;
         }
         setError(
@@ -278,7 +296,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
   // Frame and composer layout adapted from Beautiful UI ChatComposer (MIT).
   // Keep transport, durable run ownership and message consolidation in this page.
   return (
-    <div className={`ember-builder ${transcriptStyles.workspace}`}>
+    <div className="ember-builder h-dvh min-h-125 flex flex-col overflow-hidden bg-background max-md:min-h-112.5 max-md:[&_.ember-workspace-header>.ember-row]:gap-0.5 max-md:[&_.ember-workspace-header_.ember-icon]:w-7.5 transcript-workspace [&.ember-builder]:min-h-0">
       <ChatIdHeader
         userData={userData}
         showPreview={showPreview}
@@ -290,19 +308,19 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
         onBack={() => router.push("/projects")}
       />
       <div
-        className="ember-mobile-tabs"
+        className="ember-mobile-tabs hidden max-md:flex max-md:gap-1.5 max-md:py-[7px] max-md:px-[15px] max-md:border-b max-md:border-b-border max-md:[&>button]:flex-1"
         role="group"
         aria-label="Workspace view"
       >
-        <button
-          className="ember-tab"
+        <Button
+          variant="tab"
           aria-pressed={mobilePane === "chat"}
           onClick={() => setMobilePane("chat")}
         >
           Chat
-        </button>
-        <button
-          className="ember-tab"
+        </Button>
+        <Button
+          variant="tab"
           aria-pressed={mobilePane === "preview"}
           onClick={() => {
             setShowPreview(true);
@@ -310,55 +328,78 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
           }}
         >
           Workspace
-        </button>
+        </Button>
       </div>
-      <div className="ember-builder-shell">
+      <div className="ember-builder-shell flex flex-1 min-h-0 max-[1101px]:[&>.ember-workspace-sidebar]:hidden">
         <WorkspaceSidebar current="builder" />
         <main
           ref={containerRef}
-          className="ember-builder-body"
+          className="ember-builder-body flex-1 min-h-0 flex overflow-hidden max-md:[&[data-mobile-pane=chat]>.ember-preview]:hidden max-md:[&[data-mobile-pane=preview]>.ember-conversation]:hidden max-md:[&>.ember-preview]:w-full! max-md:[&>.ember-conversation]:w-full!"
           data-mobile-pane={mobilePane}
           id="main-content"
         >
           <section
-            className="ember-conversation"
+            className="ember-conversation flex flex-col min-w-0 min-h-0 bg-card"
             aria-label="Project conversation"
             style={{ width: showPreview ? `${100 - previewWidth}%` : "100%" }}
           >
-            <div className="ember-conversation-toolbar"><span className="ember-helper">Conversation</span></div>
-            <div className="ember-message-scroll" onScroll={event => {
-              const element = event.currentTarget;
-              followLatest.current = element.scrollHeight - element.scrollTop - element.clientHeight < 100;
-            }}>
+            <div className="ember-conversation-toolbar min-h-12 flex items-center justify-between gap-2.5 py-1.5 px-3.5 border-b border-b-border [&_.ember-row]:gap-[5px] [&_button]:text-[12px]">
+              <span className="ember-helper text-[12px] leading-[1.6] text-muted-foreground">
+                Conversation
+              </span>
+            </div>
+            <div
+              className="ember-message-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain py-[25px] px-6 flex flex-col gap-[23px] max-md:py-5 max-md:px-4"
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                followLatest.current =
+                  element.scrollHeight -
+                    element.scrollTop -
+                    element.clientHeight <
+                  100;
+              }}
+            >
               {isLoading && (
-                <div className="ember-row ember-helper" role="status">
+                <div
+                  className="ember-row flex items-center gap-3.5 ember-helper text-[12px] leading-[1.6] text-muted-foreground"
+                  role="status"
+                >
                   <Loader2 size={18} className="animate-spin" />
                   Loading messages…
                 </div>
               )}
               {error && (
-                <p className="ember-error" role="alert">
+                <p
+                  className="ember-error text-destructive border border-destructive bg-card py-3 px-[15px] rounded-[8px] text-[13px] leading-[1.5]"
+                  role="alert"
+                >
                   {error}
                 </p>
               )}
               {!messages.length && !isLoading && (
-                <div className="ember-chat-intro">
+                <div className="ember-chat-intro pt-3 px-0 pb-5 [&>svg]:text-accent-foreground [&>svg]:mb-4.5 [&_h2]:text-[23px] [&_h2]:leading-[1.2] [&_h2]:tracking-[-0.7px] [&_h2]:font-medium [&_p]:text-muted-foreground [&_p]:text-[13px] [&_p]:leading-[1.7] [&_p]:mt-2.5">
                   <Code2 size={26} />
                   <h2>Let’s make something useful.</h2>
-                  <p>
-                    Your conversation and build updates will appear here.
-                  </p>
+                  <p>Your conversation and build updates will appear here.</p>
                 </div>
               )}
               {messages.map((message) => (
-                <MessageBubble key={message.id} message={message} connected={wsConnected} />
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  connected={wsConnected}
+                />
               ))}
-              {isBuilding && !messages.some(message => message.id === `run:${runId}`) && (
-                <div className="ember-row ember-helper" role="status">
-                  <Loader2 size={15} className="animate-spin" />
-                  Working on your app. You can stop this run below.
-                </div>
-              )}
+              {isBuilding &&
+                !messages.some((message) => message.id === `run:${runId}`) && (
+                  <div
+                    className="ember-row flex items-center gap-3.5 ember-helper text-[12px] leading-[1.6] text-muted-foreground"
+                    role="status"
+                  >
+                    <Loader2 size={15} className="animate-spin" />
+                    Working on your app. You can stop this run below.
+                  </div>
+                )}
               <div ref={messagesEndRef} />
             </div>
             <ChatInput
@@ -375,7 +416,7 @@ function ChatWorkspace({ chatId }: { chatId: string }) {
           {showPreview && (
             <>
               <div
-                className="ember-resizer"
+                className="ember-resizer w-[5px] shrink-0 bg-border cursor-col-resize touch-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring focus-visible:outline-offset-[-1px] hover:bg-ring max-md:hidden"
                 role="separator"
                 aria-label="Resize conversation and preview"
                 aria-orientation="vertical"

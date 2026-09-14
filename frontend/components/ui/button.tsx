@@ -1,45 +1,38 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-
 import { cn } from "@/lib/utils";
 
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+const solid =
+  "ember-button gap-2.5 min-h-[43px] rounded-[8px] border text-[13px] font-medium leading-[1.25] whitespace-nowrap no-underline shadow-none [transition:opacity_140ms_ease,transform_140ms_var(--ease-out)] disabled:opacity-45 [&:not(:disabled):active]:scale-[0.98] pointer-fine:hover:opacity-88 motion-reduce:transition-opacity motion-reduce:duration-120 motion-reduce:[&:not(:disabled):active]:scale-100 focus-visible:active:scale-100";
+
+export const buttonVariants = cva(
+  "inline-flex items-center justify-center cursor-pointer disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-ring focus-visible:outline-offset-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-      },
-      size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        icon: "size-9",
+        utility:
+          "transcript-utility gap-1.5 min-w-11 min-h-11 text-muted-foreground bg-transparent border-0 rounded-[4px] text-[12px] hover:bg-secondary hover:text-foreground disabled:opacity-40 disabled:cursor-default focus-visible:outline-primary focus-visible:outline-offset-0.5",
+        default: `${solid} px-4.5 py-3 border-transparent bg-primary text-primary-foreground`,
+        secondary: `${solid} ember-secondary px-4.5 py-3 border-border bg-card text-foreground pointer-fine:hover:bg-secondary`,
+        send: `${solid} ember-send w-9 min-h-9 p-0 border-transparent bg-primary text-primary-foreground`,
+        icon: "ember-icon size-9 shrink-0 rounded-[8px] border border-transparent bg-transparent text-muted-foreground aria-pressed:bg-accent aria-pressed:text-accent-foreground pointer-fine:hover:bg-secondary pointer-fine:hover:text-foreground",
+        tab: "ember-tab gap-[7px] rounded-[6px] border-0 bg-transparent px-3 py-2 text-muted-foreground whitespace-nowrap aria-pressed:bg-secondary aria-pressed:text-foreground pointer-fine:hover:bg-secondary pointer-fine:hover:text-foreground",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
+    defaultVariants: { variant: "default" },
   },
 );
 
-function Button({
+export function Button({
   className,
   variant,
-  size,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants>) {
+}: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants>) {
   return (
     <button
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant }), className)}
       {...props}
     />
   );
 }
-
-export { Button, buttonVariants };

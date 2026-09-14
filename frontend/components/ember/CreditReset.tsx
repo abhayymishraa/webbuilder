@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { Clock3 } from "lucide-react";
 
-export function CreditReset({ resetAt, onReset }: { resetAt: string; onReset: () => void }) {
+export function CreditReset({
+  resetAt,
+  onReset,
+}: {
+  resetAt: string;
+  onReset: () => void;
+}) {
   const deadline = Date.parse(resetAt);
   const [remaining, setRemaining] = useState<number | null>(null);
 
@@ -34,10 +40,19 @@ export function CreditReset({ resetAt, onReset }: { resetAt: string; onReset: ()
   const hours = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const minutes = String(Math.floor(seconds / 60) % 60).padStart(2, "0");
   const rest = String(seconds % 60).padStart(2, "0");
-  return <span className="ember-credit-reset">
-    <Clock3 size={14} aria-hidden="true" />
-    <time dateTime={resetAt} title={`Reset available ${new Date(deadline).toLocaleString()}`}>
-      {remaining === null ? "Loading reset time…" : remaining === 0 ? "Reset available" : `Resets in ${hours}h ${minutes}m ${rest}s`}
-    </time>
-  </span>;
+  return (
+    <span className="ember-credit-reset tabular-nums [&_svg]:shrink-0">
+      <Clock3 size={14} aria-hidden="true" />
+      <time
+        dateTime={resetAt}
+        title={`Reset available ${new Date(deadline).toLocaleString()}`}
+      >
+        {remaining === null
+          ? "Loading reset time…"
+          : remaining === 0
+            ? "Reset available"
+            : `Resets in ${hours}h ${minutes}m ${rest}s`}
+      </time>
+    </span>
+  );
 }

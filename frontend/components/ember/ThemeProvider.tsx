@@ -1,6 +1,12 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
-import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useSyncExternalStore,
+} from "react";
 import { Moon, Sun } from "lucide-react";
 
 const ThemeContext = createContext({ light: false, toggle: () => {} });
@@ -32,7 +38,9 @@ function subscribeTheme(notify: () => void) {
   };
 }
 
-function getServerTheme() { return false; }
+function getServerTheme() {
+  return false;
+}
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const light = useSyncExternalStore(subscribeTheme, getTheme, getServerTheme);
@@ -59,13 +67,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 export function ThemeToggle() {
   const { light, toggle } = useContext(ThemeContext);
   return (
-    <button
+    <Button
       type="button"
-      className="ember-icon"
+      variant="icon"
       onClick={toggle}
       aria-label={`Switch to ${light ? "dark" : "light"} mode`}
     >
       {light ? <Moon size={18} /> : <Sun size={18} />}
-    </button>
+    </Button>
   );
 }

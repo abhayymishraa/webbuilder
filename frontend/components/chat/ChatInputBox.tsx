@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { ArrowUp, Loader2 } from "lucide-react";
 
 interface ChatInputBoxProps {
@@ -14,11 +15,16 @@ export function ChatInputBox({
   onSubmit,
 }: ChatInputBoxProps) {
   return (
-    <form onSubmit={onSubmit} className="ember-composer" aria-busy={isLoading}>
+    <form
+      onSubmit={onSubmit}
+      className="ember-composer border border-input bg-card rounded-[14px] p-4 flex flex-col gap-3 focus-within:border-ring"
+      aria-busy={isLoading}
+    >
       <label className="sr-only" htmlFor="project-brief">
         Describe your app
       </label>
       <textarea
+        className="w-full min-h-[75px] text-[15px] max-h-52.5 resize-y border-0 bg-transparent text-foreground leading-[1.65] outline-none placeholder:text-muted-foreground focus-visible:outline-none max-md:text-[16px]"
         id="project-brief"
         placeholder="A reading list for my book club, a portfolio for my work…"
         value={input}
@@ -27,12 +33,12 @@ export function ChatInputBox({
         rows={4}
         required
       />
-      <div className="ember-composer-footer">
+      <div className="ember-composer-footer flex items-center justify-between gap-[15px] [&>span]:text-[11px] [&>span]:text-muted-foreground">
         <span>A clear brief is a good beginning.</span>
-        <button
+        <Button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="ember-button"
+          variant="default"
           aria-label={isLoading ? "Starting your project" : "Start building"}
         >
           {isLoading ? (
@@ -41,7 +47,7 @@ export function ChatInputBox({
             <ArrowUp size={17} />
           )}
           <span>{isLoading ? "Starting…" : "Start building"}</span>
-        </button>
+        </Button>
       </div>
     </form>
   );

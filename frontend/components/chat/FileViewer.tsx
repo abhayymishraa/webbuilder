@@ -2,12 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
-import {
-  FileCode,
-  Download,
-  Loader2,
-  FolderArchive,
-} from "lucide-react";
+import { FileCode, Download, Loader2, FolderArchive } from "lucide-react";
 import apiClient from "@/api/client";
 import { toast } from "sonner";
 import { File, Folder, Tree } from "@/components/ui/file-tree";
@@ -103,9 +98,13 @@ function getFileIcon(filename: string) {
 
 function FileTreeNode({ node }: { node: FileNode }) {
   if (!node.isDirectory) return <File value={node.path} name={node.name} />;
-  return <Folder value={node.path} name={node.name}>
-    {node.children?.map(child => <FileTreeNode key={child.path} node={child} />)}
-  </Folder>;
+  return (
+    <Folder value={node.path} name={node.name}>
+      {node.children?.map((child) => (
+        <FileTreeNode key={child.path} node={child} />
+      ))}
+    </Folder>
+  );
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -128,7 +127,9 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
   const fileTree = buildFileTree(files);
   const [binary, setBinary] = useState(false);
   const requestNumber = useRef(0);
-  const revisionQuery = revisionId ? `revision_id=${encodeURIComponent(revisionId)}` : "";
+  const revisionQuery = revisionId
+    ? `revision_id=${encodeURIComponent(revisionId)}`
+    : "";
 
   useEffect(() => {
     const request = ++requestNumber.current;
@@ -158,7 +159,10 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
         { responseType: "blob" },
       );
       downloadBlob(blob, selectedFile.split("/").pop() || "file.txt");
-      toast.success("File download started", { description: selectedFile, id: `download-${projectId}` });
+      toast.success("File download started", {
+        description: selectedFile,
+        id: `download-${projectId}`,
+      });
     } catch {
       setDownloadError("Could not download this file. Please try again.");
     }
@@ -176,7 +180,9 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
       );
 
       downloadBlob(response.data, `${projectId}-files.zip`);
-      toast.success("Project ZIP download started", { id: `download-${projectId}` });
+      toast.success("Project ZIP download started", {
+        id: `download-${projectId}`,
+      });
     } catch {
       setDownloadError("Could not download the project ZIP. Please try again.");
     } finally {
@@ -186,10 +192,13 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
 
   // Auto-select first file
   useEffect(() => {
-    if (!files.length) { setSelectedFile(null); return; }
+    if (!files.length) {
+      setSelectedFile(null);
+      return;
+    }
     if (!selectedFile || !files.includes(selectedFile)) {
       const firstFile =
-        files.find((f) => !f.includes("/") || f.split("/").length === 1) ||
+        files.find((f) => !f.includes("/")) ||
         files[0];
       setSelectedFile(firstFile);
     }
@@ -208,7 +217,7 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
   return (
     <div className="h-full flex">
       {/* File Tree Sidebar */}
-      <div className="ember-file-tree border-r border-border overflow-y-auto bg-muted">
+      <div className="ember-file-tree w-47.5 min-w-30 max-w-[38%] shrink-0 max-md:w-[135px] border-r border-border overflow-y-auto bg-muted">
         <div className="sticky top-0 bg-card backdrop-blur-sm border-b border-border p-3 z-10">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-foreground font-semibold text-sm">Files</h3>
@@ -231,22 +240,33 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
           </p>
         </div>
 
-        {downloadError && <p role="alert" className="px-3 py-2 text-xs text-destructive">{downloadError}</p>}
-        <Tree selectedId={selectedFile} onSelectFile={setSelectedFile}
-          initialExpandedItems={fileTree.filter(node => node.isDirectory).map(node => node.path)}>
-          {fileTree.map(node => <FileTreeNode key={node.path} node={node} />)}
+        {downloadError && (
+          <p role="alert" className="px-3 py-2 text-xs text-destructive">
+            {downloadError}
+          </p>
+        )}
+        <Tree
+          selectedId={selectedFile}
+          onSelectFile={setSelectedFile}
+          initialExpandedItems={fileTree
+            .filter((node) => node.isDirectory)
+            .map((node) => node.path)}
+        >
+          {fileTree.map((node) => (
+            <FileTreeNode key={node.path} node={node} />
+          ))}
         </Tree>
       </div>
 
       {/* Editor Area */}
-      <div className="ember-file-editor flex-1 flex flex-col">
+      <div className="ember-file-editor min-w-0 flex-1 flex flex-col">
         {selectedFile ? (
           <>
             {/* Editor Header */}
-            <div className="ember-file-header flex items-center justify-between px-4 py-2 bg-muted border-b border-border">
+            <div className="ember-file-header min-w-0 flex-wrap gap-2 flex items-center justify-between px-4 py-2 bg-muted border-b border-border">
               <div className="flex items-center gap-2">
                 {getFileIcon(selectedFile)}
-                <span className="ember-file-path text-foreground font-mono">
+                <span className="ember-file-path min-w-0 wrap-anywhere text-[11px] text-foreground font-mono">
                   {selectedFile}
                 </span>
               </div>
@@ -266,7 +286,9 @@ export function FileViewer({ files, projectId, revisionId }: FileViewerProps) {
                   <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
               ) : binary ? (
-                <div className="p-6 text-sm text-muted-foreground">Binary or large file. Download to view the original.</div>
+                <div className="p-6 text-sm text-muted-foreground">
+                  Binary or large file. Download to view the original.
+                </div>
               ) : (
                 <Editor
                   height="100%"
