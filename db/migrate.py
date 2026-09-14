@@ -27,6 +27,7 @@ async def migrate():
                 await connection.execute(text(f'ALTER TABLE chats ADD COLUMN IF NOT EXISTS {column} VARCHAR(36)'))
             await connection.execute(text('ALTER TABLE runs ADD COLUMN IF NOT EXISTS log_key VARCHAR(512)'))
             await connection.execute(text('ALTER TABLE runs ADD COLUMN IF NOT EXISTS log_sha256 VARCHAR(64)'))
+            await connection.execute(text('ALTER TABLE sandbox_runtimes ADD COLUMN IF NOT EXISTS spend_id VARCHAR(36)'))
             for column in ('uploaded_ops', 'downloaded_ops'):
                 await connection.execute(text(f'ALTER TABLE storage_usage ADD COLUMN IF NOT EXISTS {column} INTEGER NOT NULL DEFAULT 0'))
             await connection.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_context_search ON messages USING gin (to_tsvector('simple', content)) WHERE role IN ('user', 'assistant')"))

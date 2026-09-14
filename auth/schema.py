@@ -20,6 +20,21 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class CostWindow(BaseModel):
+    limit_usd: float
+    used_or_reserved_usd: float
+    remaining_usd: float
+    resets_at: datetime
+
+
+class CostAllowance(BaseModel):
+    unlimited: bool
+    currency: str = 'USD'
+    reset_timezone: str = 'UTC'
+    daily: CostWindow
+    monthly: CostWindow
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,6 +49,7 @@ class UserResponse(BaseModel):
     tokens_remaining: int = 2
     credits_unlimited: bool = False
     tokens_reset_at: Optional[datetime] = None
+    cost_allowance: Optional[CostAllowance] = None
 
 
 class RefreshTokenRequest(BaseModel):

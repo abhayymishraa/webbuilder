@@ -17,6 +17,8 @@ from sqlalchemy import delete, or_, select, update
 from db.base import AsyncSessionLocal
 from db.models import Chat, SandboxRuntime
 from .storage import StorageError
+from .sandbox_budget import reserve_runtime, confirm_runtime, settle_runtime
+from .budget import BudgetLimitError
 
 logger = logging.getLogger('webbuilder.runs')
 RUNTIME_TIMEOUT = 1200
@@ -51,7 +53,9 @@ class SandboxRuntimes:
         self.handles.pop(chat_id, None)
         self.last_used.pop(chat_id, None)
 
-    async def remove(self, row):
+    async def remove(self, row, *, rejected=False):
+        # Only callers with confirmed absence/termination remove runtime ownership.
+        await settle_runtime(row.spend_id, rejected=rejected)
         async with AsyncSessionLocal.begin() as db:
             await db.execute(delete(SandboxRuntime).where(
                 SandboxRuntime.chat_id == row.chat_id,
@@ -91,12 +95,12 @@ class SandboxRuntimes:
             self.forget_handle(chat_id)
         return True
 
-    async def state(self, row):
+    async def state(self, row, info=None):
         """Control-plane state query. A paused runtime is not a dead health probe."""
         if not row.sandbox_id:
             return 'unknown'
         try:
-            info = await AsyncSandbox.get_info(row.sandbox_id, request_timeout=API_TIMEOUT)
+            info = info or await AsyncSandbox.get_info(row.sandbox_id, request_timeout=API_TIMEOUT)
         except NotFoundException:
             await self.remove(row)
             return 'missing'
@@ -104,6 +108,8 @@ class SandboxRuntimes:
         if state in ('running', 'paused'):
             await self.change(row, state=state)
             if state == 'paused':
+                await settle_runtime(row.spend_id)
+                await self.change(row, spend_id=None)
                 self.forget_handle(row.chat_id)
         return state
 
@@ -118,23 +124,38 @@ class SandboxRuntimes:
                 and row.template_id == template and row.generation == generation
                 and row.state in ('running', 'paused'))
             if compatible:
+                try:
+                    info = await AsyncSandbox.get_info(row.sandbox_id, request_timeout=API_TIMEOUT)
+                except NotFoundException:
+                    await self.remove(row)
+                    row = None
+                if row and await self.state(row, info) not in ('running', 'paused'):
+                    raise StorageError('Preview state is unknown; retry after cleanup')
+            if row and compatible:
+                spend = await reserve_runtime(chat_id, RUNTIME_TIMEOUT, row.spend_id, info)
                 # Reserve durably before connect: connect can wake a paused sandbox.
-                await self.change(row, state='running', last_used_at=datetime.now(timezone.utc))
+                await self.change(row, state='running', spend_id=spend.id,
+                                  last_used_at=datetime.now(timezone.utc))
                 try:
                     async with asyncio.timeout(30):
                         handle = await AsyncSandbox.connect(row.sandbox_id,
                             timeout=RUNTIME_TIMEOUT, request_timeout=API_TIMEOUT)
                     self.handles[chat_id] = handle
+                    await confirm_runtime(spend.id, await AsyncSandbox.get_info(
+                        handle.sandbox_id, request_timeout=API_TIMEOUT))
                     return handle, False
                 except NotFoundException:
                     # Confirm termination below before making a replacement.
                     pass
+                except BudgetLimitError:
+                    raise
                 except Exception:
                     raise StorageError('Preview resume could not be confirmed; retry after cleanup') from None
-            if not await self.retire(chat_id):
+            if row and not await self.retire(chat_id):
                 raise StorageError('Previous preview cleanup is pending; no replacement was started')
 
-        row = SandboxRuntime(chat_id=chat_id, operation_id=str(uuid.uuid4()),
+        spend = await reserve_runtime(chat_id, RUNTIME_TIMEOUT)
+        row = SandboxRuntime(chat_id=chat_id, operation_id=str(uuid.uuid4()), spend_id=spend.id,
             template_id=template, generation=generation, revision_id=None,
             reusable=False, state='creating', last_used_at=datetime.now(timezone.utc))
         async with AsyncSessionLocal.begin() as db:
@@ -150,10 +171,12 @@ class SandboxRuntimes:
         except (AuthenticationException, InvalidArgumentException, NotFoundException,
                 RateLimitException, ServiceBusyException):
             # Explicit request rejection is different from a lost creation response.
-            await self.remove(row)
+            await self.remove(row, rejected=True)
             raise
         self.handles[chat_id] = handle
         await self.change(row, sandbox_id=handle.sandbox_id, state='running')
+        await confirm_runtime(spend.id, await AsyncSandbox.get_info(
+            handle.sandbox_id, request_timeout=API_TIMEOUT))
         return handle, True
 
     async def invalidate(self, chat_id):
@@ -181,6 +204,8 @@ class SandboxRuntimes:
             async with asyncio.timeout(30):
                 await AsyncSandbox.pause(row.sandbox_id, request_timeout=30)
             await self.change(row, state='paused')
+            await settle_runtime(row.spend_id)
+            await self.change(row, spend_id=None)
             self.forget_handle(row.chat_id)
             return True
         except NotFoundException:

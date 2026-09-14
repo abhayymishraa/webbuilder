@@ -1,5 +1,20 @@
 // API Response Types
 
+export interface CostWindow {
+    limit_usd: number;
+    used_or_reserved_usd: number;
+    remaining_usd: number;
+    resets_at: string;
+}
+
+export interface CostAllowance {
+    unlimited: boolean;
+    currency: string;
+    reset_timezone: string;
+    daily: CostWindow;
+    monthly: CostWindow;
+}
+
 export interface UserData {
     id: number;
     email: string;
@@ -11,6 +26,7 @@ export interface UserData {
     email_verified?: boolean;
     created_at?: string;
     providers?: string[];
+    cost_allowance?: CostAllowance | null;
 }
 
 export interface LoginResponse {

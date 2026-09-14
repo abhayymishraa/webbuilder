@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChatNavbar } from "@/components/layout/ChatNavbar";
 import { WorkspaceSidebar } from "@/components/layout/WorkspaceSidebar";
 import { CreditReset } from "@/components/profile/CreditReset";
+import { UsageAllowance } from "@/components/profile/UsageAllowance";
 import { ProfileIdentityCard } from "@/components/profile/ProfileIdentityCard";
 import { ProfileSkeleton } from "@/components/profile/ProfileSkeleton";
 import { Check, Mail } from "lucide-react";
@@ -88,6 +89,7 @@ export default function ProfilePage() {
                                             )}
                                         </div>
                                     )}
+                                    <UsageAllowance allowance={user.cost_allowance} />
                                 </section>
                                 <section aria-labelledby="signin-title">
                                     <h2 id="signin-title">Sign-in methods</h2>

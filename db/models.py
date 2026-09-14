@@ -13,6 +13,9 @@ from sqlalchemy import (
     UniqueConstraint,
     false,
     Date,
+    BigInteger,
+    Index,
+    CheckConstraint,
 )
 
 
@@ -236,3 +239,25 @@ class SandboxRuntime(Base):
     reusable: Mapped[bool] = mapped_column(Boolean, default=False)
     state: Mapped[str] = mapped_column(String(16), index=True)
     last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    spend_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+
+
+class SpendEntry(Base):
+    """Content-free cost ledger; project/run deletion must not reset an allowance."""
+    __tablename__ = 'spend_entries'
+    __table_args__ = (
+        Index('ix_spend_user_window', 'user_id', 'ends_at', 'starts_at'),
+        CheckConstraint('amount_nanos >= 0 AND reserved_nanos >= 0'),
+        CheckConstraint('ends_at >= starts_at'),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id'), index=True)
+    # No run/chat foreign keys: deleting content must preserve incurred costs.
+    run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    state: Mapped[str] = mapped_column(String(16), default='reserved')
+    reserved_nanos: Mapped[int] = mapped_column(BigInteger)
+    amount_nanos: Mapped[int] = mapped_column(BigInteger)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict] = mapped_column(JSON, default=dict)

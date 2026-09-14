@@ -3,6 +3,7 @@ import httpx
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 from .usage import capture_provider_usage
+from .model_budget import reserve_model_request, settle_model_response
 load_dotenv()
 
 api_key = os.getenv("OPENAI_API_KEY")
@@ -19,5 +20,8 @@ llm = ChatOpenAI(
     max_tokens=8192,
     timeout=90,
     max_retries=1,
-    http_async_client=httpx.AsyncClient(event_hooks={'response': [capture_provider_usage]}),
+    http_async_client=httpx.AsyncClient(event_hooks={
+        'request': [reserve_model_request],
+        'response': [capture_provider_usage, settle_model_response],
+    }),
 )

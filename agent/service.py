@@ -26,6 +26,8 @@ from .events import redact, run_events
 from .context import ContextError, ProjectContext
 from .sandbox_runtime import SandboxRuntimes
 from .diagnostics import sandbox_diagnostics
+from .budget import BudgetLimitError, require_allowance
+from .model_budget import spend_scope
 
 logger = logging.getLogger('webbuilder.runs')
 logger.setLevel(logging.INFO)
@@ -140,6 +142,10 @@ class Service:
                     raise HTTPException(401, 'User not found')
                 if not user.email_verified:
                     raise HTTPException(403, 'Verify your email before continuing.')
+                try:
+                    await require_allowance(db, user)
+                except BudgetLimitError as exc:
+                    raise HTTPException(429, str(exc)) from None
                 required = ('STORAGE_BUCKET',) + (('MINIO_ENDPOINT', 'MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY')
                     if os.getenv('STORAGE_PROVIDER', 'minio') == 'minio' else ())
                 if any(not os.getenv(name) for name in required):
@@ -316,6 +322,7 @@ class Service:
             key: live.metrics.get(key) for key in ('turns', 'tool_calls', 'total_tokens', 'elapsed_ms', 'error_type', 'stage', 'sandbox_cleanup', 'token_budget', 'model_calls', 'cached_input_tokens', 'cache_write_tokens', 'uncached_input_tokens')}}))
 
     async def execute(self, live):
+        scope_token = spend_scope.set({'user_id': live.user_id, 'run_id': live.id, 'limit_error': None})
         started = time.monotonic()
         status, reason, result = 'failed', 'The run failed. Submit a new request to retry.', None
         diagnose_sandbox = False
@@ -338,7 +345,7 @@ class Service:
         except asyncio.CancelledError:
             status = 'interrupted' if self.stopping else 'cancelled'
             reason = 'Server stopped; submit a new request to continue.' if self.stopping else 'Stopped at your request. The last acknowledged checkpoint remains available.'
-        except (RunLimitError, VerificationError, ContextError, PreviewError) as exc:
+        except (RunLimitError, VerificationError, ContextError, PreviewError, BudgetLimitError) as exc:
             reason = str(exc)
             live.metrics['error_type'] = type(exc).__name__
             diagnose_sandbox = isinstance(exc, (SandboxSetupError, PreviewError))
@@ -390,6 +397,7 @@ class Service:
             if live.chat_id in self.sandboxes:
                 self.sandbox_last_used[live.chat_id] = time.monotonic()
             self.active.pop(live.id, None)
+            spend_scope.reset(scope_token)
 
     async def cancel(self, run_id):
         live = self.active.get(run_id)

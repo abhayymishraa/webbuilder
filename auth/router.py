@@ -4,6 +4,7 @@ from sqlalchemy import select, func, update
 from sqlalchemy.exc import IntegrityError
 from db.models import User, AuthIdentity, AuthToken
 from db.base import get_db
+from agent.budget import allowance
 from .schema import (
     UserLogin,
     UserResponse,
@@ -14,6 +15,7 @@ from .schema import (
     ProfileUpdate,
     EmailRequest,
     TokenRequest,
+    CostAllowance,
 )
 
 from .utils import (
@@ -142,6 +144,7 @@ async def get_me(
             select(AuthIdentity.provider).where(AuthIdentity.user_id == current_user.id)
         )
     )
+    response.cost_allowance = CostAllowance.model_validate(await allowance(db, current_user))
     return response
 
 

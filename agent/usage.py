@@ -2,6 +2,7 @@
 import hashlib
 import json
 from contextvars import ContextVar
+from .model_budget import spend_scope
 
 _provider_usage = ContextVar('provider_usage', default=None)
 
@@ -35,6 +36,11 @@ async def invoke_with_usage(model, messages, **kwargs):
         if holder:
             response.response_metadata['provider_usage'] = holder
         return response
+    except Exception:
+        scope = spend_scope.get()
+        if scope and scope.get('limit_error'):
+            raise scope['limit_error'] from None
+        raise
     finally:
         _provider_usage.reset(token)
 

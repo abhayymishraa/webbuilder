@@ -13,6 +13,7 @@ from fastapi import Depends
 
 from sqlalchemy import select, text, delete, func
 from agent.service import agent_service
+from agent.budget import BudgetLimitError
 from agent.archive import safe_path
 from agent.persistence import archive_slots, ensure_revision, revision_bytes, read_object
 from agent.storage import StorageError
@@ -255,6 +256,8 @@ async def open_project_preview(id: str, current_user: User = Depends(get_current
         return await agent_service.open_preview(id)
     except HTTPException:
         raise
+    except BudgetLimitError as exc:
+        raise HTTPException(429, str(exc)) from None
     except Exception:
         raise HTTPException(503, "Preview could not start. Saved files are still available; retry opening the preview.") from None
 
